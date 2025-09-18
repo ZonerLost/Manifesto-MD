@@ -1,0 +1,69 @@
+
+K-Tonix Solutions – Flutter UI Kit License Agreement
+
+This License Agreement ("Agreement") is entered into by and between K-Tonix Solutions ("Licensor"), a company registered in Pakistan, and the user ("Licensee") of the Flutter UI Kit ("Software").
+
+1. License Types
+
+a. Regular License:
+Grants Licensee the right to use the Software in one (1) end product for personal or commercial use, where the end product is not offered for sale or distribution.
+The Regular License does not allow:
+- Use of the Software in any product intended for resale or public distribution.
+- Sharing the source code publicly (e.g., GitHub, forums, or social media).
+- Any form of redistribution, sublicensing, or inclusion in other UI kits, design systems, or templates.
+
+b. Extended License:
+Includes all rights of the Regular License and additionally allows the use of the Software in end products intended for sale or public distribution, such as:
+- SaaS platforms
+- Mobile apps sold or monetized
+- Commercial templates or starter kits
+The Extended License does not allow:
+- Selling or redistributing the original source code or UI kit as-is or with minimal changes.
+- Publishing the Software in open-source or code-sharing platforms.
+
+2. Permitted Use
+Licensee may use the Software solely in accordance with the license purchased, including use for:
+- Mobile app UI/UX development
+- Client projects (one per license)
+- Internal company projects
+The Software may not be used in multiple client projects under a single license. A separate license must be purchased for each end product or client.
+
+3. Restrictions
+Licensee shall not:
+- Resell, redistribute, sublicense, lease, or share the Software (even for free), unless explicitly allowed under the Extended License.
+- Use the Software in open-source projects or make it available on GitHub, Bitbucket, or any public code repository.
+- Use the Software to create a competing UI kit, design system, or any asset for sale on marketplaces (e.g., CodeCanyon, ThemeForest).
+- Remove, hide, or alter copyright notices, branding, or proprietary notices.
+- Use the Software for any illegal or unethical purpose.
+
+4. Intellectual Property
+The Licensor retains full ownership and intellectual property rights in and to the Software. This license grants usage rights only—no ownership is transferred.
+
+5. Warranty Disclaimer
+The Software is provided “as is” without any warranties, express or implied. Licensor disclaims all implied warranties, including merchantability, fitness for a particular purpose, and non-infringement.
+
+6. Limitation of Liability
+Under no circumstances shall the Licensor be liable for any direct, indirect, incidental, special, or consequential damages arising out of the use or inability to use the Software, even if advised of the possibility of such damages.
+
+7. Enforcement & Termination
+The Licensor reserves the right to terminate the license immediately if any term of this Agreement is violated. Upon termination:
+- The Licensee must immediately cease all use of the Software.
+- All copies and derivative works must be destroyed.
+- No refund shall be issued for terminated licenses.
+
+8. Support & Updates
+Licensor may, at its discretion, provide updates, bug fixes, or customer support.
+
+9. Governing Law
+This Agreement is governed by the laws of Pakistan. All disputes shall be resolved exclusively in the courts located in Punjab, Pakistan.
+
+10. Contact Information
+K-Tonix Solutions
+Contact Person: Ahad Khan
+Email: babaa336@gmail.com
+LinkedIn: https://www.linkedin.com/company/ktonixsolutions/
+
+By downloading, installing, or using the Software, Licensee acknowledges they have read, understood, and agreed to be bound by the terms of this Agreement.
+
+Effective Date: May 1, 2024
+Last Updated: May 15, 2025
