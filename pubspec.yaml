@@ -11,10 +11,13 @@ environment:
 dependencies:
   cached_network_image: ^3.4.1
   carousel_slider: ^5.1.1
+  cloud_firestore: ^6.0.2
   country_picker: ^2.0.27
   cupertino_icons: ^1.0.8
   dropdown_button2: ^2.3.9
   expandable: ^5.0.1
+  firebase_auth: ^6.1.0
+  firebase_core: ^4.1.1
   flutter:
     sdk: flutter
   flutter_advanced_switch: ^3.1.0
@@ -25,6 +28,7 @@ dependencies:
   get: ^4.6.6
   percent_indicator: ^4.2.5
   pinput: ^5.0.1
+  shared_preferences: ^2.5.3
   smooth_page_indicator: ^1.2.0+3
   step_progress_indicator: ^1.0.2
 

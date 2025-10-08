@@ -14,54 +14,56 @@ class GetStarted extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: CustomContainer(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Spacer(),
-            Image.asset(Assets.imagesLogo, height: 70),
-            SizedBox(height: 14),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                MyText(
-                  text: 'Manifesto',
-                  size: 24,
-                  weight: FontWeight.w700,
-                  color: kSecondaryColor,
-                ),
-                MyText(
-                  text: ' MD',
-                  size: 24,
-                  weight: FontWeight.w700,
-                  color: kRedColor,
-                ),
-              ],
-            ),
-            Spacer(),
-            Padding(
-              padding: AppSizes.DEFAULT,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Spacer(),
+              Image.asset(Assets.imagesLogo, height: 70),
+              SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  MyButton(
-                    buttonText: 'Get Started',
-                    onTap: () {
-                      Get.to(() => Login());
-                    },
+                  MyText( 
+                    text: 'Manifesto',
+                    size: 24,
+                    weight: FontWeight.w700,
+                    color: kSecondaryColor,
                   ),
                   MyText(
-                    paddingTop: 12,
-                    textAlign: TextAlign.center,
-                    paddingBottom: 4,
-                    text: ' This action may contain ad',
-                    size: 12,
-                    color: kTertiaryColor.withValues(alpha: 0.7),
+                    text: ' MD',
+                    size: 24,
+                    weight: FontWeight.w700,
+                    color: kRedColor,
                   ),
                 ],
               ),
-            ),
-          ],
+              Spacer(),
+              Padding(
+                padding: AppSizes.DEFAULT,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    MyButton(
+                      buttonText: 'Get Started',
+                      onTap: () {
+                        Get.to(() => Login());
+                      },
+                    ),
+                    MyText(
+                      paddingTop: 12,
+                      textAlign: TextAlign.center,
+                      paddingBottom: 4,
+                      text: ' This action may contain ad',
+                      size: 12,
+                      color: kTertiaryColor.withValues(alpha: 0.7),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

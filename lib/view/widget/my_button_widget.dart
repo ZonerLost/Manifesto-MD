@@ -15,6 +15,7 @@ class MyButton extends StatelessWidget {
     this.customChild,
     this.bgColor,
     this.textColor,
+    this.isLoading = false,
     this.enabled = true,
     this.disabledBgColor,
     this.disabledTextColor,
@@ -27,6 +28,7 @@ class MyButton extends StatelessWidget {
   Widget? customChild;
   Color? bgColor, textColor;
   final bool enabled;
+  final bool isLoading;
   Color? disabledBgColor, disabledTextColor;
 
   @override
@@ -41,13 +43,13 @@ class MyButton extends StatelessWidget {
             : (disabledTextColor ?? kPrimaryColor);
 
     return Opacity(
-      opacity: enabled ? 1.0 : 0.6,
+      opacity: enabled || isLoading ? 1.0 : 0.6,
       child: Container(
         height: height,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius ?? 16),
           gradient:
-              enabled
+              enabled || isLoading
                   ? LinearGradient(
                     colors:
                         bgColor != null
@@ -67,14 +69,14 @@ class MyButton extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
-          color: !enabled ? effectiveBgColor : null,
+          color: !enabled || isLoading ? effectiveBgColor : null,
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: enabled ? onTap : null,
+            onTap: enabled || isLoading ? onTap : null,
             splashColor:
-                enabled
+                enabled || isLoading
                     ? kPrimaryColor.withValues(alpha: 0.1)
                     : Colors.transparent,
             highlightColor:
@@ -82,7 +84,7 @@ class MyButton extends StatelessWidget {
                     ? kPrimaryColor.withValues(alpha: 0.1)
                     : Colors.transparent,
             borderRadius: BorderRadius.circular(radius ?? 16),
-            child:
+            child: isLoading ? Center(child: CircularProgressIndicator.adaptive(),) :
                 customChild ??
                 Center(
                   child: MyText(

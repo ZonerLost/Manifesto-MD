@@ -48,7 +48,7 @@ class CustomSwitchTile extends StatelessWidget {
                 width: 25 / 0.62,
                 child: CupertinoSwitch(
                   activeTrackColor: kSecondaryColor,
-                  value: value!,
+                  value: value,
                   onChanged: onChanged,
                 ),
               ),
