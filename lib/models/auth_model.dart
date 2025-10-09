@@ -5,6 +5,7 @@ class AuthModel {
   final String? photoUrl;
   final DateTime createdAt;
 
+
   AuthModel({
     required this.uid,
     required this.email,
@@ -44,3 +45,6 @@ class AuthModel {
         ')';
   }
 }
+
+
+

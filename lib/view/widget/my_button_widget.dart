@@ -30,75 +30,74 @@ class MyButton extends StatelessWidget {
   final bool enabled;
   final bool isLoading;
   Color? disabledBgColor, disabledTextColor;
+@override
+Widget build(BuildContext context) {
+  final Color effectiveBgColor = enabled
+      ? (bgColor ?? const Color(0xff12C0C0))
+      : (disabledBgColor ?? Colors.grey.shade300);
 
-  @override
-  Widget build(BuildContext context) {
-    final Color effectiveBgColor =
-        enabled
-            ? (bgColor ?? Color(0xff12C0C0))
-            : (disabledBgColor ?? Colors.grey.shade300);
-    final Color effectiveTextColor =
-        enabled
-            ? (textColor ?? kPrimaryColor)
-            : (disabledTextColor ?? kPrimaryColor);
+  final Color effectiveTextColor = enabled
+      ? (textColor ?? kPrimaryColor)
+      : (disabledTextColor ?? kPrimaryColor);
 
-    return Opacity(
-      opacity: enabled || isLoading ? 1.0 : 0.6,
-      child: Container(
-        height: height,
-        decoration: BoxDecoration(
+  return Opacity(
+    opacity: enabled ? 1.0 : 0.6,
+    child: Container(
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius ?? 16),
+        gradient: (enabled && !isLoading)
+            ? LinearGradient(
+                colors: bgColor != null
+                    ? [bgColor!, bgColor!]
+                    : [const Color(0xff12C0C0), const Color(0xff009CCD)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              )
+            : LinearGradient(
+                colors: [
+                  const Color(0xff12C0C0).withValues(alpha: 0.35),
+                  const Color(0xff009CCD).withValues(alpha: 0.35),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+        color: !enabled || isLoading ? effectiveBgColor : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: (enabled && !isLoading) ? onTap : null,
+          splashColor: enabled
+              ? kPrimaryColor.withValues(alpha: 0.1)
+              : Colors.transparent,
+          highlightColor: enabled
+              ? kPrimaryColor.withValues(alpha: 0.1)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(radius ?? 16),
-          gradient:
-              enabled || isLoading
-                  ? LinearGradient(
-                    colors:
-                        bgColor != null
-                            ? [bgColor!, bgColor!]
-                            : [Color(0xff12C0C0), Color(0xff009CCD)],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
+          child: Center(
+            child: isLoading
+                ? const SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator.adaptive(
+                      strokeWidth: 2.5,
+                    ),
                   )
-                  : LinearGradient(
-                    colors:
-                        bgColor != null
-                            ? [bgColor!, bgColor!]
-                            : [
-                              Color(0xff12C0C0).withValues(alpha: 0.35),
-                              Color(0xff009CCD).withValues(alpha: 0.35),
-                            ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-          color: !enabled || isLoading ? effectiveBgColor : null,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: enabled || isLoading ? onTap : null,
-            splashColor:
-                enabled || isLoading
-                    ? kPrimaryColor.withValues(alpha: 0.1)
-                    : Colors.transparent,
-            highlightColor:
-                enabled
-                    ? kPrimaryColor.withValues(alpha: 0.1)
-                    : Colors.transparent,
-            borderRadius: BorderRadius.circular(radius ?? 16),
-            child: isLoading ? Center(child: CircularProgressIndicator.adaptive(),) :
-                customChild ??
-                Center(
-                  child: MyText(
-                    text: buttonText,
-                    size: textSize ?? 15,
-                    weight: weight ?? FontWeight.w600,
-                    color: effectiveTextColor,
-                  ),
-                ),
+                : (customChild ??
+                    MyText(
+                      text: buttonText,
+                      size: textSize ?? 15,
+                      weight: weight ?? FontWeight.w600,
+                      color: effectiveTextColor,
+                    )),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+
 }
 
 // ignore: must_be_immutable

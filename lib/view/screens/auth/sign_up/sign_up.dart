@@ -48,6 +48,7 @@ class SignUp extends StatelessWidget {
                 labelText: 'Full Name',
                 hintText: 'Full Name',
                 labelPrefix: Assets.imagesName,
+                controller: nameController,
                 validator: (v){
                   if( v == null || v.isEmpty){
                     return "Enter the required field";
@@ -58,10 +59,11 @@ class SignUp extends StatelessWidget {
               MyTextField(
                 labelText: 'Email',
                 hintText: 'Email',
+                controller: emailController,
                 onChanged: (v) async {
                   Debouncer.instance.run(()async{
                       await authController.checkForEmail(v);
-                  }, delay: 300);
+                  }, delay: 500);
                 },
                 labelPrefix: Assets.imagesEmail,
                  validator: (v){
@@ -78,6 +80,7 @@ class SignUp extends StatelessWidget {
             Obx( () =>  MyTextField(
                 labelText: 'Password',
                 hintText: 'Password',
+                controller: passwordController,
                 labelPrefix: Assets.imagesPassword,
                 labelSuffix: Assets.imagesInfo,
                  validator: (v){
@@ -184,6 +187,7 @@ class SignUp extends StatelessWidget {
               )),
             Obx( () => MyTextField(
                 marginBottom: 30,
+                controller: confirmPasswordController,
                 labelText: 'Re-Enter Password',
                 hintText: 'Password',
                 labelPrefix: Assets.imagesPassword,

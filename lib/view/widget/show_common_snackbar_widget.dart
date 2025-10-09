@@ -16,8 +16,6 @@ Get.showSnackbar(
   
         GetSnackBar(
           snackPosition: SnackPosition.TOP,
-         
-          borderRadius: 20,
           title: title,
           titleText: MyText(text: title, color: textColor, weight: FontWeight.bold,),
           messageText: MyText(text: mesage, color: messageTextColor, weight: FontWeight.bold,),
