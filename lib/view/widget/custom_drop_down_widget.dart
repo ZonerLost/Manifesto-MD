@@ -1,17 +1,16 @@
+import 'package:flutter/material.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
-import 'package:dropdown_button2/dropdown_button2.dart';
 
-import 'package:flutter/material.dart';
-
-// ignore: must_be_immutable
 class CustomDropDown extends StatelessWidget {
-  CustomDropDown({
+  const CustomDropDown({
+    super.key,
     required this.hint,
     required this.items,
-    required this.selectedValue,
     required this.onChanged,
+    this.selectedValue,
     this.bgColor,
     this.marginBottom,
     this.width,
@@ -26,9 +25,9 @@ class CustomDropDown extends StatelessWidget {
     this.onLabelSuffixTap,
   });
 
-  final List<dynamic>? items;
-  final String selectedValue;
-  final ValueChanged<dynamic>? onChanged;
+  final List<String>? items;
+  final String? selectedValue;
+  final ValueChanged<String?>? onChanged;
   final String hint;
   final String? labelText;
   final String? labelPrefix;
@@ -73,28 +72,25 @@ class CustomDropDown extends StatelessWidget {
               ),
             ),
           DropdownButtonHideUnderline(
-            child: DropdownButton2(
-              items:
-                  items!
-                      .map(
-                        (item) => DropdownMenuItem<dynamic>(
-                          value: item,
-                          child: MyText(
-                            text: item,
-                            size: 13,
-                            weight: FontWeight.w600,
-                          ),
+            child: DropdownButton2<String>(
+              value: items!.contains(selectedValue) ? selectedValue : null,
+              items: items!
+                  .map((item) => DropdownMenuItem<String>(
+                        value: item,
+                        child: MyText(
+                          text: item,
+                          size: 13,
+                          weight: FontWeight.w600,
                         ),
-                      )
-                      .toList(),
-              value: selectedValue,
+                      ))
+                  .toList(),
               onChanged: onChanged,
-              iconStyleData: IconStyleData(icon: SizedBox()),
+              iconStyleData: const IconStyleData(icon: SizedBox()),
               isDense: true,
               isExpanded: false,
               customButton: Container(
                 height: height ?? 48,
-                padding: EdgeInsets.symmetric(horizontal: 15),
+                padding: const EdgeInsets.symmetric(horizontal: 15),
                 decoration: BoxDecoration(
                   color: bgColor ?? kFillColor,
                   border: Border.all(width: border ?? 1, color: kBorderColor),
@@ -105,22 +101,23 @@ class CustomDropDown extends StatelessWidget {
                   children: [
                     Expanded(
                       child: MyText(
-                        text: selectedValue == hint ? hint : selectedValue,
+                        text: selectedValue ?? hint,
                         size: 14,
                         weight: FontWeight.w600,
-                        color:
-                            selectedValue == hint ? kHintColor : kTertiaryColor,
+                        color: selectedValue == null
+                            ? kHintColor
+                            : kTertiaryColor,
                       ),
                     ),
                     Image.asset(Assets.imagesDropdown, height: 16),
                   ],
                 ),
               ),
-              menuItemStyleData: MenuItemStyleData(height: 30),
+              menuItemStyleData: const MenuItemStyleData(height: 30),
               dropdownStyleData: DropdownStyleData(
                 elevation: 3,
                 maxHeight: 300,
-                offset: Offset(0, -5),
+                offset: const Offset(0, -5),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
                   color: kPrimaryColor,

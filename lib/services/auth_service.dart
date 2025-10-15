@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:manifesto_md/models/auth_model.dart';
 import 'package:manifesto_md/models/professional_details_model.dart';
+import 'package:manifesto_md/services/sahred_preferences_service.dart';
 
 class AuthService  {
 
@@ -60,7 +61,7 @@ Future<AuthModel?> login({
 
       DocumentSnapshot snap =
           await _firestore.collection("users").doc(cred.user!.uid).get();
-
+      
       return AuthModel.fromMap(snap.data() as Map<String, dynamic>);
     } on FirebaseAuthException catch (e){
        throw getFirebaseAuthErrorMessage(e.code);
@@ -111,9 +112,14 @@ Future<AuthModel?> login({
       // Sign in to Firebase
       final UserCredential userCredential =
           await _auth.signInWithCredential(credential);
-      
-      
 
+      final AuthModel authModel = AuthModel(uid: userCredential.user!.uid, 
+      email: userCredential.user?.email ?? "", country: "", name: userCredential.user?.displayName ?? "N/A", 
+      createdAt: DateTime.now());
+      SharePrefService.instance.addUserId(userCredential.user!.uid);
+
+        await _firestore.collection("users").doc(userCredential.user!.uid).set(authModel.toMap());
+            
       return userCredential.user;
     } catch (e) {
       print("Google Sign-In Error: $e");
@@ -142,7 +148,7 @@ Future<AuthModel?> login({
     case 'network-request-failed':
       return 'Network error. Please check your internet connection.';
     case 'invalid-credential':
-      return 'The provided credentials are invalid or expired.';
+      return 'The provided credentials are invalid';
     case 'missing-email':
       return 'Please enter an email address.';
     case 'account-exists-with-different-credential':
@@ -184,6 +190,17 @@ Future<ProfessionalDetailsModel?> saveProfessionalData({
   }
 }
 
+
+
+
+Future<void> logOut() async{
+  try {
+    await _auth.signOut();
+    SharePrefService.instance.clearUserId();
+  } catch (e) {
+      throw ("Something Went Wrong  $e");
+  }
+}
 
 
 }

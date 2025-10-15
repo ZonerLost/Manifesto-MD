@@ -14,6 +14,18 @@ class ProfessionalDetailsModel {
   }
 
 
+  ProfessionalDetailsModel copyWith({
+    String? speciality,
+    String? professionalLev,
+    
+  }) {
+    return ProfessionalDetailsModel(
+     speciality:  speciality ?? this.speciality, 
+     professionalLevel:  professionalLev ?? this.professionalLevel
+    );
+  }
+
+
  Map<String, dynamic> toMap() {
   return {
     "professionalLevel" : professionalLevel ?? "", 

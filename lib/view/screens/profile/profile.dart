@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:get/get.dart';
+import 'package:manifesto_md/config/extensions/media_query_extensions.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
+import 'package:manifesto_md/controllers/auth_controller.dart';
+import 'package:manifesto_md/controllers/profile_controller.dart';
 import 'package:manifesto_md/main.dart';
 import 'package:manifesto_md/view/screens/profile/app_language.dart';
 import 'package:manifesto_md/view/screens/profile/app_theme.dart';
@@ -13,21 +16,37 @@ import 'package:manifesto_md/view/screens/profile/privacy_settings.dart';
 import 'package:manifesto_md/view/screens/profile/references.dart';
 import 'package:manifesto_md/view/screens/subscription/subscription.dart';
 import 'package:manifesto_md/view/widget/common_image_view_widget.dart';
+import 'package:manifesto_md/view/widget/common_shimmer_widget.dart';
 import 'package:manifesto_md/view/widget/custom_app_bar.dart';
 import 'package:manifesto_md/view/widget/custom_container_widget.dart';
 import 'package:manifesto_md/view/widget/my_button_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 
-class Profile extends StatelessWidget {
+class Profile extends StatefulWidget {
   const Profile({super.key});
 
+  @override
+  State<Profile> createState() => _ProfileState();
+}
+
+class _ProfileState extends State<Profile> {
+
+    final ProfileController profileController = Get.find();
+    final AuthController authController = Get.find();
+
+  @override
+  void initState() {
+    super.initState();
+      profileController.fetchProfile();
+  }
+  
   @override
   Widget build(BuildContext context) {
     return CustomContainer(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: simpleAppBar(title: 'Setings'),
+        appBar: simpleAppBar(title: 'Settings'),
         body: ListView(
           shrinkWrap: true,
           padding: AppSizes.DEFAULT,
@@ -44,33 +63,40 @@ class Profile extends StatelessWidget {
                       fit: BoxFit.cover,
                       radius: 100,
                     ),
-                    Positioned(
+                   Obx(() => Positioned(
                       bottom: 0,
                       right: 0,
-                      child: Image.asset(
+                      child: profileController.isLoading.value ? CommonShimmer(height: 60, width: 60, radius: 60,) :  Image.asset(
                         Assets.imagesChangeProfileImage,
                         height: 22,
                       ),
                     ),
+                   )
                   ],
                 ),
                 SizedBox(width: 20),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
+                    
                     children: [
-                      MyText(
-                        text: 'Alex Mahone',
+                    Obx( () => profileController.isLoading.value ? CommonShimmer(
+                      height: 10, width: context.screenWidth,
+                    )  :  MyText(
+                        text: profileController.profile.value?.name ?? "",
                         size: 16,
                         weight: FontWeight.w700,
-                      ),
-                      MyText(
+                      )),
+                      SizedBox(height: 4,),
+                    Obx( () => profileController.isLoading.value ? CommonShimmer(
+                      height: 10, width: context.screenWidth,
+                    )  :  MyText(
                         paddingTop: 6,
-                        text: 'alex.mahone@gmail.com',
+                        text:  profileController.profile.value?.email ?? "",
                         size: 12,
                         weight: FontWeight.w500,
                         color: kGreyColor,
-                      ),
+                      )),
                     ],
                   ),
                 ),
@@ -79,16 +105,16 @@ class Profile extends StatelessWidget {
             SizedBox(height: 12),
             Row(
               children: [
-                MyText(
+               Obx( () => MyText(
                   onTap: () {
                     Get.to(() => EditProfile());
                   },
-                  text: 'Complete Your Profile. ',
+                  text: profileController.profileCompletion.value == 100 ? 'Edit Profile' : 'Complete Your Profile. ',
                   size: 10,
                   weight: FontWeight.w600,
                   color: kSecondaryColor,
                   decoration: TextDecoration.underline,
-                ),
+                )),
                 Expanded(
                   child: MyText(
                     text: 'Add your specialty to improve content relevance! ',
@@ -100,23 +126,25 @@ class Profile extends StatelessWidget {
               ],
             ),
             SizedBox(height: 6),
-            LinearPercentIndicator(
+          Obx( () => profileController.isLoading.value ? CommonShimmer(
+                      height: 10, width: context.screenWidth,
+                    )  :  LinearPercentIndicator(
               lineHeight: 6.0,
-              percent: 0.7,
+              percent: profileController.profileCompletion.value,
               padding: EdgeInsets.zero,
-              backgroundColor: kSecondaryColor.withOpacity(0.12),
+              backgroundColor: kSecondaryColor.withValues(alpha: 0.12),
               progressColor: kSecondaryColor,
               barRadius: Radius.circular(8),
               animation: true,
               trailing: MyText(
                 paddingLeft: 6,
-                text: '70%',
+                text: '${(profileController.profileCompletion.value * 100).toStringAsFixed(0)}%',
                 size: 12,
                 weight: FontWeight.w500,
                 color: kGreyColor,
               ),
               animationDuration: 800,
-            ),
+            )),
             Container(
               height: 1,
               color: kBorderColor,
@@ -244,11 +272,38 @@ class Profile extends StatelessWidget {
             ),
             _ProfileTile(
               onTap: () {
-                Get.bottomSheet(_DeleteAccount(), isScrollControlled: true);
+                Get.bottomSheet(_DeleteAccount(
+                  
+                   title: 'Logout!',
+                  subtitle:  'Are you sure you want to logout?' ,
+                  btnText: "Logout",
+                  icon:  Assets.imageLogout,
+                  ontap: () {
+                    authController.logOut();
+                  },
+                ), isScrollControlled: true);
+              },
+              image: Assets.imageLogout,
+              title: 'Logout',
+              subtitle: 'Logout Your Account',
+              
+              isRed: false,
+            ),
+            _ProfileTile(
+              onTap: () {
+                Get.bottomSheet(_DeleteAccount(
+                  title: 'Delete Account!',
+                  subtitle:  'Are you sure you want to delete your account?' ,
+                  btnText: "Delete",
+                  icon:  Assets.imagesDeleteAccountIcon,
+                  ontap: (){
+                    
+                  },
+                ), isScrollControlled: true);
               },
               image: Assets.imagesDeleteAccount,
               title: 'Delete Account',
-              subtitle: 'Delete Your Account',
+              subtitle: 'Signout from your account',
               isRed: true,
             ),
           ],
@@ -293,7 +348,9 @@ class _ProfileTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Image.asset(image, height: 32),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(9),
+              child: Image.asset(image, height: 32)),
             SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -318,7 +375,13 @@ class _ProfileTile extends StatelessWidget {
 }
 
 class _DeleteAccount extends StatelessWidget {
-  const _DeleteAccount({super.key});
+  final String title;
+  final String subtitle;
+  final String icon;
+  final String btnText; 
+  final Function()? ontap;
+  const _DeleteAccount({required this.title, required this.subtitle, 
+  required this.btnText, required this.ontap, required this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -337,13 +400,13 @@ class _DeleteAccount extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               MyText(
-                text: 'Delete Account!',
+                text: title ,
                 size: 18,
                 weight: FontWeight.w700,
                 paddingBottom: 8,
               ),
               MyText(
-                text: 'Are you sure you want to delete your account?',
+                text: subtitle,
                 paddingBottom: 20,
               ),
               Row(
@@ -360,10 +423,8 @@ class _DeleteAccount extends StatelessWidget {
                   Expanded(
                     child: MyButton(
                       bgColor: kRedColor,
-                      buttonText: 'Delete',
-                      onTap: () {
-                        Get.back();
-                      },
+                      buttonText:  btnText ,
+                      onTap: ontap ?? (){},
                     ),
                   ),
                 ],
@@ -375,7 +436,10 @@ class _DeleteAccount extends StatelessWidget {
         Positioned(
           top: -16,
           right: 32,
-          child: Image.asset(Assets.imagesDeleteAccountIcon, height: 65),
+          child: ClipRRect(
+              borderRadius: BorderRadius.circular(9),
+            
+            child: Image.asset(icon, height: 65)),
         ),
       ],
     );

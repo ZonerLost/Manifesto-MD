@@ -4,7 +4,6 @@ import 'package:get/get_navigation/get_navigation.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
-import 'package:manifesto_md/view/screens/chat_room/chat_screen.dart';
 import 'package:manifesto_md/view/screens/chat_room/create_new_group.dart';
 import 'package:manifesto_md/view/widget/chat_head_tile_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';

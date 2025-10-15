@@ -14,6 +14,9 @@ class Assets {
   /// assets/images/add_other_member.png
   static const String imagesAddOtherMember = "assets/images/add_other_member.png";
 
+
+  static const String imageLogout = "assets/images/logout.png";
+
   /// Assets for imagesAdvanceChatPrivacy
   /// assets/images/advance_chat_privacy.png
   static const String imagesAdvanceChatPrivacy = "assets/images/advance_chat_privacy.png";

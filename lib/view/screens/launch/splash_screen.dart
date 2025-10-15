@@ -1,11 +1,13 @@
 import 'dart:async';
+import 'package:manifesto_md/config/routes/routes.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
-import 'package:manifesto_md/view/screens/launch/get_started.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:manifesto_md/view/widget/custom_container_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
+
+import '../../../services/sahred_preferences_service.dart';
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -20,7 +22,19 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void splashScreenHandler() {
-    Timer(Duration(seconds: 2), () => Get.offAll(() => GetStarted()));
+    Timer(Duration(seconds: 2), () {
+      
+     checkForUuid();
+    });
+  }
+
+  checkForUuid()async{
+   var id = await SharePrefService.instance.getUserId();
+   if(id != null ){
+    Get.offAllNamed(AppLinks.homeScreen);
+   } else {
+    Get.offAllNamed(AppLinks.getStartedScreen);
+   }
   }
 
   @override

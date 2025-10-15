@@ -1,7 +1,6 @@
 
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
-import 'package:manifesto_md/view/widget/my_text_widget.dart';
 
 showCommonSnackbarWidget(
  final String title, 
@@ -12,15 +11,14 @@ showCommonSnackbarWidget(
   }
 
 ){
-Get.showSnackbar(
+Get.snackbar(
   
-        GetSnackBar(
           snackPosition: SnackPosition.TOP,
-          title: title,
-          titleText: MyText(text: title, color: textColor, weight: FontWeight.bold,),
-          messageText: MyText(text: mesage, color: messageTextColor, weight: FontWeight.bold,),
-          backgroundColor: bgColor ?? Color(0xFF303030) ,
-        )
+           title,
+         
+          mesage, 
+          
+        
       );
 
 }

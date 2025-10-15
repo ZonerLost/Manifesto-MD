@@ -3,6 +3,7 @@ import 'package:manifesto_md/view/screens/auth/login/login.dart';
 import 'package:manifesto_md/view/screens/auth/sign_up/professional_details.dart';
 import 'package:manifesto_md/view/screens/auth/sign_up/sign_up.dart';
 import 'package:manifesto_md/view/screens/home/home.dart';
+import 'package:manifesto_md/view/screens/launch/get_started.dart';
 
 import '../../view/screens/launch/splash_screen.dart';
 
@@ -11,6 +12,10 @@ class AppRoutes {
     GetPage(
       name: AppLinks.splash_screen,
       page: () => SplashScreen(),
+    ),
+    GetPage(
+      name: AppLinks.getStartedScreen,
+      page: () => GetStarted(),
     ),
     GetPage(
       name: AppLinks.professionalDetailsScreen,
@@ -37,6 +42,7 @@ class AppRoutes {
 
 class AppLinks {
   static const splash_screen = '/splash_screen';
+  static const getStartedScreen = '/getStartedScreen';
   static const professionalDetailsScreen = '/professionalDetailsScreen';
   static const loginScreen = '/loginScreen';
   static const signUpScreen = '/signUpScreen';
