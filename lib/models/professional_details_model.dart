@@ -10,7 +10,7 @@ class ProfessionalDetailsModel {
 
   factory ProfessionalDetailsModel.fromMap(Map<String, dynamic>  map) {
     return ProfessionalDetailsModel(professionalLevel: map['professionalLevel'] ?? "", 
-    speciality: map['speicality'] ?? "");
+    speciality: map['speciality'] ?? "");
   }
 
 
@@ -29,7 +29,7 @@ class ProfessionalDetailsModel {
  Map<String, dynamic> toMap() {
   return {
     "professionalLevel" : professionalLevel ?? "", 
-    'speicality' : speciality ?? ""
+    'speciality' : speciality ?? ""
   };
   }
 

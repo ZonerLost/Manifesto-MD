@@ -1,73 +1,37 @@
 {
   "project_info": {
-    "project_number": "1049903749089",
-    "project_id": "manifestomd-a306c",
-    "storage_bucket": "manifestomd-a306c.firebasestorage.app"
+    "project_number": "970427068745",
+    "project_id": "manifesto-md",
+    "storage_bucket": "manifesto-md.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1049903749089:android:2b148ff6e01e91361ae4a0",
-        "android_client_info": {
-          "package_name": "com.example.manifesto_md"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "1049903749089-5l7spk0srhfeo67hn8nrjm174doer7sj.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyCBr-BTgPBV3vnoMIz8bAneIpMp-jwbai8"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "1049903749089-38fgsq1m3jtie9eattp52r77049cpg0k.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "1049903749089-csum6bn8ttb3algut9gfsdlp0sth7280.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.example.manifestomd"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:1049903749089:android:396cebe6be55a91c1ae4a0",
+        "mobilesdk_app_id": "1:970427068745:android:3c59424713d35266b66a98",
         "android_client_info": {
           "package_name": "com.example.manifestomd"
         }
       },
       "oauth_client": [
         {
-          "client_id": "1049903749089-5l7spk0srhfeo67hn8nrjm174doer7sj.apps.googleusercontent.com",
+          "client_id": "970427068745-8n6m21u8untnjvt7p57qop7rgulnatru.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyCBr-BTgPBV3vnoMIz8bAneIpMp-jwbai8"
+          "current_key": "AIzaSyAS66UkMnHtl1zKTNQNawG5Xg_SS2g7iW0"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "1049903749089-38fgsq1m3jtie9eattp52r77049cpg0k.apps.googleusercontent.com",
+              "client_id": "970427068745-8n6m21u8untnjvt7p57qop7rgulnatru.apps.googleusercontent.com",
               "client_type": 3
             },
             {
-              "client_id": "1049903749089-csum6bn8ttb3algut9gfsdlp0sth7280.apps.googleusercontent.com",
+              "client_id": "970427068745-3dpg6nej1o09of861hsm3fincnq2arip.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
                 "bundle_id": "com.example.manifestomd"

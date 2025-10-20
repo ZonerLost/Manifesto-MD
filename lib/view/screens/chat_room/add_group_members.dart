@@ -3,12 +3,12 @@ import 'package:get/get.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
-import 'package:manifesto_md/main.dart';
 import 'package:manifesto_md/view/widget/common_image_view_widget.dart';
 import 'package:manifesto_md/view/widget/custom_check_box_widget.dart';
 import 'package:manifesto_md/view/widget/custom_container_widget.dart';
 import 'package:manifesto_md/view/widget/custom_search_bar_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
+import 'package:manifesto_md/controllers/create_group_controller.dart'; // keep your path
 
 class AddGroupMembers extends StatefulWidget {
   const AddGroupMembers({super.key});
@@ -18,72 +18,67 @@ class AddGroupMembers extends StatefulWidget {
 }
 
 class _AddGroupMembersState extends State<AddGroupMembers> {
-  final List<Map<String, String>> chatGroups = [
-    {'name': 'Alex S', 'email': 'AS@gmail.com', 'imageUrl': dummyImg},
-    {'name': 'Danish Mehmood', 'email': 'DM@gmail.com', 'imageUrl': dummyImg},
-    {'name': 'Sara Khan', 'email': 'sara.khan@email.com', 'imageUrl': dummyImg},
-    {'name': 'John Doe', 'email': 'john.doe@email.com', 'imageUrl': dummyImg},
-    {
-      'name': 'Emily Clark',
-      'email': 'emily.clark@email.com',
-      'imageUrl': dummyImg,
-    },
-    {
-      'name': 'Michael Lee',
-      'email': 'michael.lee@email.com',
-      'imageUrl': dummyImg,
-    },
-    {
-      'name': 'Priya Patel',
-      'email': 'priya.patel@email.com',
-      'imageUrl': dummyImg,
-    },
-    {
-      'name': 'Carlos Rivera',
-      'email': 'carlos.rivera@email.com',
-      'imageUrl': dummyImg,
-    },
-    {'name': 'Fatima Zahra', 'email': 'fatima.zahra@email.com', 'imageUrl': ''},
-    {'name': 'Tom Smith', 'email': 'tom.smith@email.com', 'imageUrl': ''},
-  ];
-  final Set<int> selectedIndexes = {};
+  late final CreateGroupController c;
   final TextEditingController _searchController = TextEditingController();
-  String searchQuery = '';
+  final _scrollCtrl = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+   
+    c = Get.isRegistered<CreateGroupController>()
+        ? Get.find<CreateGroupController>()
+        : Get.put(CreateGroupController());
+
+   
+    _scrollCtrl.addListener(() {
+      final max = _scrollCtrl.position.maxScrollExtent;
+      if (_scrollCtrl.position.pixels > max - 280) {
+        c.loadNextPage();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // --- helpers to normalize user fields ---
+  String _name(Map<String, dynamic> u) =>
+      (u['name'] ?? u['name'] ?? '').toString();
+  String _email(Map<String, dynamic> u) =>
+      (u['email'] ?? '').toString();
+  String _photo(Map<String, dynamic> u) =>
+      (u['photoURL'] ?? u['imageUrl'] ?? '').toString();
+
+  String _initials(Map<String, dynamic> u) {
+    final n = _name(u).trim();
+    if (n.isEmpty) return '';
+    final parts = n.split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    final letters = parts.take(2).map((e) => e[0]).join();
+    return letters.toUpperCase();
+    }
 
   @override
   Widget build(BuildContext context) {
-    // Filter chatGroups based on searchQuery
-    final List<Map<String, String>> filteredGroups =
-        searchQuery.isEmpty
-            ? chatGroups
-            : chatGroups
-                .where(
-                  (member) =>
-                      (member['name'] ?? '').toLowerCase().contains(
-                        searchQuery.toLowerCase(),
-                      ) ||
-                      (member['email'] ?? '').toLowerCase().contains(
-                        searchQuery.toLowerCase(),
-                      ),
-                )
-                .toList();
-
     return CustomContainer(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        floatingActionButton:
-            selectedIndexes.isNotEmpty
-                ? Padding(
-                  padding: const EdgeInsets.only(right: 5, bottom: 15),
-                  child: GestureDetector(
-                    onTap: () {
-                      Get.back();
-                    },
-                    child: Image.asset(Assets.imagesDone, height: 48),
-                  ),
-                )
-                : null,
-
+        floatingActionButton: Obx(() => c.selected.isNotEmpty
+            ? Padding(
+                padding: const EdgeInsets.only(right: 5, bottom: 15),
+                child: GestureDetector(
+                  onTap: () {
+                    // selection already stored in controller.selected
+                    Get.back(); // or Navigator.pop(context);
+                  },
+                  child: Image.asset(Assets.imagesDone, height: 48),
+                ),
+              )
+            : const SizedBox.shrink()),
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           automaticallyImplyLeading: false,
@@ -101,192 +96,178 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
             spacing: 4,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              MyText(
+               MyText(
                 text: 'New Group',
                 size: 14,
                 color: kTertiaryColor,
                 weight: FontWeight.w600,
               ),
-              MyText(text: 'Add Members', size: 12, color: kTertiaryColor),
+               MyText(text: 'Add Members', size: 12, color: kTertiaryColor),
             ],
           ),
         ),
-        body: ListView(
-          shrinkWrap: true,
-          padding: AppSizes.VERTICAL,
-          physics: BouncingScrollPhysics(),
-          children: [
-            Padding(
-              padding: AppSizes.HORIZONTAL,
-              child: CustomSearchBar(
-                hintText: 'Search Name or Email',
-                controller: _searchController,
-                onChanged: (val) {
-                  setState(() {
-                    searchQuery = val;
-                  });
-                },
+        body: Obx(() {
+          // Build filtered list reactively
+          final query = c.query.value.trim().toLowerCase();
+          final all = c.users; // RxList<Map>
+          final filtered = query.isEmpty
+              ? all
+              : all.where((u) {
+                  final n = _name(u).toLowerCase();
+                  final e = _email(u).toLowerCase();
+                  return n.contains(query) || e.contains(query);
+                }).toList();
+
+          // Create a quick lookup to render selected chips
+          final byId = {for (final u in all) u['id'] as String: u};
+
+          return ListView(
+            controller: _scrollCtrl,
+            shrinkWrap: true,
+            padding: AppSizes.VERTICAL,
+            physics: const BouncingScrollPhysics(),
+            children: [
+              // Search
+              Padding(
+                padding: AppSizes.HORIZONTAL,
+                child: CustomSearchBar(
+                  hintText: 'Search Name or Email',
+                  controller: _searchController,
+                  onChanged: (val) => c.query.value = val,
+                ),
               ),
-            ),
-            if (selectedIndexes.isNotEmpty) ...[
-              SizedBox(height: 16),
-              SizedBox(
-                height: 65,
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  padding: AppSizes.HORIZONTAL,
-                  physics: BouncingScrollPhysics(),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: selectedIndexes.length,
-                  separatorBuilder: (BuildContext context, int index) {
-                    return SizedBox(width: 10);
-                  },
-                  itemBuilder: (BuildContext context, int index) {
-                    return Column(
-                      children: [
-                        Stack(
-                          clipBehavior: Clip.none,
-                          alignment: Alignment.bottomCenter,
-                          children: [
-                            if (chatGroups[selectedIndexes.elementAt(
-                                      index,
-                                    )]['imageUrl'] !=
-                                    null &&
-                                chatGroups[selectedIndexes.elementAt(
-                                      index,
-                                    )]['imageUrl']!
-                                    .isNotEmpty)
-                              CommonImageView(
-                                height: 40,
-                                width: 40,
-                                radius: 100,
-                                url:
-                                    chatGroups[selectedIndexes.elementAt(
-                                      index,
-                                    )]['imageUrl'] ??
-                                    '',
-                                fit: BoxFit.cover,
-                              )
-                            else
-                              Container(
-                                height: 40,
-                                width: 40,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: kBorderColor,
+
+              // Selected chips
+              if (c.selected.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 65,
+                  child: ListView.separated(
+                    padding: AppSizes.HORIZONTAL,
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: c.selected.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 10),
+                    itemBuilder: (_, i) {
+                      final uid = c.selected.elementAt(i);
+                      final u = byId[uid];
+                      final img = u != null ? _photo(u) : '';
+                      final initials = u != null ? _initials(u) : '';
+                      final firstName = u != null
+                          ? (_name(u).split(' ').firstOrNull ?? _name(u))
+                          : uid;
+
+                      return Column(
+                        children: [
+                          Stack(
+                            clipBehavior: Clip.none,
+                            alignment: Alignment.bottomCenter,
+                            children: [
+                              if (img.isNotEmpty)
+                                CommonImageView(
+                                  height: 40,
+                                  width: 40,
+                                  radius: 100,
+                                  url: img,
+                                  fit: BoxFit.cover,
+                                )
+                              else
+                                Container(
+                                  height: 40,
+                                  width: 40,
+                                  decoration:  BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: kBorderColor,
+                                  ),
+                                  child: Center(
+                                    child: MyText(
+                                      text: initials,
+                                      size: 16,
+                                      weight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
-                                child: Center(
-                                  child: MyText(
-                                    text:
-                                        chatGroups[selectedIndexes.elementAt(
-                                                  index,
-                                                )]['name'] !=
-                                                null
-                                            ? chatGroups[selectedIndexes
-                                                    .elementAt(index)]['name']!
-                                                .trim()
-                                                .split(' ')
-                                                .where((e) => e.isNotEmpty)
-                                                .map((e) => e.substring(0, 1))
-                                                .take(2)
-                                                .join()
-                                                .toUpperCase()
-                                            : '',
-                                    size: 16,
-                                    weight: FontWeight.w600,
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: GestureDetector(
+                                  onTap: () => c.selected.remove(uid),
+                                  child: Image.asset(
+                                    Assets.imagesCancelIcon,
+                                    height: 14,
                                   ),
                                 ),
                               ),
-
-                            Positioned(
-                              right: 0,
-                              bottom: 0,
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    selectedIndexes.remove(
-                                      selectedIndexes.elementAt(index),
-                                    );
-                                  });
-                                },
-                                child: Image.asset(
-                                  Assets.imagesCancelIcon,
-                                  height: 14,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        MyText(
-                          paddingTop: 6,
-                          text:
-                              (() {
-                                final name =
-                                    chatGroups[selectedIndexes.elementAt(
-                                      index,
-                                    )]['name'] ??
-                                    '';
-                                final parts = name.trim().split(' ');
-                                return parts.isNotEmpty ? parts.first : name;
-                              })(),
-                          size: 12,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          textOverflow: TextOverflow.ellipsis,
-                          weight: FontWeight.w500,
-                        ),
-                      ],
-                    );
-                  },
+                            ],
+                          ),
+                          MyText(
+                            paddingTop: 6,
+                            text: firstName,
+                            size: 12,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            textOverflow: TextOverflow.ellipsis,
+                            weight: FontWeight.w500,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
+                Container(
+                  height: 1,
+                  color: kBorderColor,
+                  margin: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ],
+
+              SizedBox(height: 10,),
+
+               MyText(
+                paddingLeft: 20,
+                paddingBottom: 12,
+                text: 'All SymptoSmart MD Contacts',
+                size: 14,
+                weight: FontWeight.w600,
               ),
-              Container(
-                height: 1,
-                color: kBorderColor,
-                margin: EdgeInsets.symmetric(vertical: 16),
+
+              // Users list
+              ListView.separated(
+                itemCount: filtered.length + ((c.hasMore.value && c.isLoadingPage.value) ? 1 : 0),
+                padding: AppSizes.HORIZONTAL,
+              physics: const NeverScrollableScrollPhysics(),
+                shrinkWrap: true,
+                separatorBuilder: (_, __) => const SizedBox(height: 16),
+                itemBuilder: (_, i) {
+                  // loader row at end
+                  if (i >= filtered.length) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(12.0),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    );
+                  }
+
+                  final u = filtered[i];
+                  final uid = u['id'] as String;
+                  final img = _photo(u);
+                  final nm = _name(u);
+                  final em = _email(u);
+                  final checked = c.selected.contains(uid);
+
+                  return _MemberTile(
+                    name: nm,
+                    email: em,
+                    imageUrl: img,
+                    isSelected: checked,
+                    onTap: () => checked ? c.selected.remove(uid) : c.selected.add(uid),
+                  );
+                },
               ),
             ],
-
-            MyText(
-              paddingLeft: 20,
-              paddingTop: selectedIndexes.isNotEmpty ? 0 : 16,
-              paddingBottom: 12,
-              text: 'All SymptoSmart MD Contacts',
-              size: 14,
-              weight: FontWeight.w600,
-            ),
-            ListView.separated(
-              itemCount: filteredGroups.length,
-              padding: AppSizes.HORIZONTAL,
-              physics: BouncingScrollPhysics(),
-              shrinkWrap: true,
-              separatorBuilder: (BuildContext context, int index) {
-                return SizedBox(height: 16);
-              },
-              itemBuilder: (BuildContext context, int filteredIndex) {
-                // Find the original index in chatGroups for selection tracking
-                final originalIndex = chatGroups.indexOf(
-                  filteredGroups[filteredIndex],
-                );
-                return _MemberTile(
-                  name: filteredGroups[filteredIndex]['name'] ?? '',
-                  email: filteredGroups[filteredIndex]['email'] ?? '',
-                  imageUrl: filteredGroups[filteredIndex]['imageUrl'] ?? '',
-                  isSelected: selectedIndexes.contains(originalIndex),
-                  onTap: () {
-                    setState(() {
-                      if (selectedIndexes.contains(originalIndex)) {
-                        selectedIndexes.remove(originalIndex);
-                      } else {
-                        selectedIndexes.add(originalIndex);
-                      }
-                    });
-                  },
-                );
-              },
-            ),
-          ],
-        ),
+          );
+        }),
       ),
     );
   }
@@ -300,13 +281,13 @@ class _MemberTile extends StatelessWidget {
   final VoidCallback onTap;
 
   const _MemberTile({
-    Key? key,
+    super.key,
     required this.name,
     required this.email,
     required this.imageUrl,
     required this.isSelected,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -326,28 +307,21 @@ class _MemberTile extends StatelessWidget {
             Container(
               height: 48,
               width: 48,
-              decoration: BoxDecoration(
+              decoration:  BoxDecoration(
                 shape: BoxShape.circle,
                 color: kBorderColor,
               ),
               child: Center(
                 child: MyText(
-                  text:
-                      name.isNotEmpty
-                          ? name
-                              .trim()
-                              .split(' ')
-                              .map((e) => e.isNotEmpty ? e[0] : '')
-                              .take(2)
-                              .join()
-                              .toUpperCase()
-                          : '',
+                  text: name.isNotEmpty
+                      ? name.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).map((e) => e[0]).take(2).join().toUpperCase()
+                      : '',
                   size: 16,
                   weight: FontWeight.w600,
                 ),
               ),
             ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -374,4 +348,8 @@ class _MemberTile extends StatelessWidget {
       ),
     );
   }
+}
+
+extension<T> on List<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }

@@ -11,6 +11,9 @@ class ProfileService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
+   static const String _profCol = 'professional_details';
+  static const String _profDocId = 'main'; 
+
   /// ✅ Fetch user profile
   Future<AuthModel?> getProfile(String userId) async {
     try {
@@ -23,27 +26,26 @@ class ProfileService {
   }
 
 
-Future<Map<String, dynamic>?> getProfessionalDetails(String userId) async {
-  try {
-    final querySnap = await _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('professional_details')
-        .get();
+  Future<Map<String, dynamic>?> getProfessionalDetails(String userId) async {
+    try {
+      final ref = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection(_profCol)
+          .doc(_profDocId);
 
-    if (querySnap.docs.isEmpty) return null;
+      final snap = await ref.get();
+      if (!snap.exists || snap.data() == null) return null;
 
-    final doc = querySnap.docs.first;
-
-    final data = doc.data();
-
-    return {
-      "docId" : doc.id, 
-      "Details" : ProfessionalDetailsModel.fromMap(data)};
-  } catch (e) {
-    throw Exception("Get professional details error: $e");
+      final data = snap.data()!;
+      return {
+        "docId": snap.id, 
+        "Details": ProfessionalDetailsModel.fromMap(data),
+      };
+    } catch (e) {
+      throw Exception("Get professional details error: $e");
+    }
   }
-}
 
 
   /// ✅ Update profile data (name, country, etc.)
@@ -60,22 +62,39 @@ Future<Map<String, dynamic>?> getProfessionalDetails(String userId) async {
 
 
 
-  Future<void> updateProfessionalDetails({
+
+Future<void> updateProfessionalDetails({
     required String userId,
-    required String docId, 
-    required Map<String, dynamic> professionalData,
+    Map<String, dynamic> professionalData = const {},
+    String? docId, // kept for backward compat; ignored
   }) async {
     try {
-      await _firestore
+      final ref = _firestore
           .collection('users')
           .doc(userId)
-          .collection('professional_details')
-          .doc(docId)
-          .set(professionalData, SetOptions(merge: true));
+          .collection(_profCol)
+          .doc(_profDocId);
+
+      await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        if (snap.exists) {
+          tx.set(ref, {
+            ...professionalData,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        } else {
+          tx.set(ref, {
+            ...professionalData,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      });
     } catch (e) {
       throw Exception("Update professional details error: $e");
     }
   }
+
 
   /// ✅ Upload profile image and return URL
   Future<String> uploadProfileImage({

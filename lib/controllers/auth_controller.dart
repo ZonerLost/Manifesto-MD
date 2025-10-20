@@ -138,7 +138,7 @@ class AuthController extends GetxController {
     isCheckingForEmail.value = true;
     try {
       emailFoundMessage.value = await AuthService.instance.checkForEmail(email);
-     
+      print(emailFoundMessage);
     } catch (e) {
       print(e);
           showCommonSnackbarWidget("Error", "Something went wrong",);

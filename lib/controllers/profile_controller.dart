@@ -23,12 +23,13 @@ class ProfileController extends GetxController {
       if (userId == null || userId.isEmpty) throw Exception("No user ID found");
 
       final professionalModelData = await ProfileService.instance.getProfessionalDetails(userId);
+     
       final data = await ProfileService.instance.getProfile(userId);
       profile.value = data;
       imageUrl.value = data?.photoUrl ?? '';
       professionalDetails.value = professionalModelData!['Details'];
       docId.value = professionalModelData['docId'];
-      print(professionalModelData);
+      print(professionalDetails.value!.speciality);
       _calculateProfileCompletion();
     } catch (e) {
       print("Fetch profile error: $e");

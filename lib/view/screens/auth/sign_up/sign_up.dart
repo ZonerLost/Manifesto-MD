@@ -76,7 +76,10 @@ class SignUp extends StatelessWidget {
                   return null;
                 },
               ),
-              Obx(() => MyText(text: authController.emailFoundMessage.value)),
+              if(authController.emailFoundMessage.value.isNotEmpty)
+              Obx(() => MyText(text: authController.emailFoundMessage.value, color: kRedColor,)),
+              SizedBox(height: 12),
+
             Obx( () =>  MyTextField(
                 labelText: 'Password',
                 hintText: 'Password',

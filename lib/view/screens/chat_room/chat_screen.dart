@@ -10,7 +10,6 @@ import 'package:manifesto_md/view/widget/common_image_view_widget.dart';
 import 'package:manifesto_md/view/widget/custom_check_box_widget.dart';
 import 'package:manifesto_md/view/widget/custom_container_widget.dart';
 import 'package:manifesto_md/view/widget/my_button_widget.dart';
-import 'package:manifesto_md/view/widget/my_text_field_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -18,7 +17,7 @@ class ChatScreen extends StatefulWidget {
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
-}
+}   
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();

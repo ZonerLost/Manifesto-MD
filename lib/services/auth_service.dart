@@ -72,18 +72,23 @@ Future<AuthModel?> login({
   }
 
 
-  Future<String> checkForEmail(String email) async {
+Future<String> checkForEmail(String email) async {
+  try {
+    final querySnapshot = await _firestore
+        .collection("users")
+        .where("email", isEqualTo: email.trim())
+        .limit(1)
+        .get();
 
-    try {
-        final emailResp = await _firestore.collection("users").doc(email.trim()).get();
-        if(emailResp.exists){
-          return "This Email is already registered";
-        }
-      return "";
-    } catch (e) {
-      throw ("Something went wrong $e");
+    if (querySnapshot.docs.isNotEmpty) {
+      return "This Email is already registered";
     }
+    return "";
+  } catch (e) {
+    throw ("Something went wrong: $e");
   }
+}
+
 
   Future<User?> signInWithGoogle() async {
     try {

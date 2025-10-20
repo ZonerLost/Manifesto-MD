@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get_core/src/get_main.dart';
 import 'package:get/get_navigation/get_navigation.dart';
+import 'package:manifesto_md/config/bindings/app_bindings.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
@@ -41,7 +42,7 @@ class _BySpecialtyState extends State<BySpecialty> {
           bottom: 40,
           child: GestureDetector(
             onTap: () {
-              Get.to(() => CreateNewGroup());
+              Get.to(() => CreateNewGroup(), binding: AppBindings());
             },
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6.54),
@@ -49,7 +50,7 @@ class _BySpecialtyState extends State<BySpecialty> {
                 borderRadius: BorderRadius.circular(10),
                 gradient: LinearGradient(
                   colors: [Color(0xff12C0C0), Color(0xff009CCD)],
-                  begin: Alignment.topCenter,
+                  begin: Alignment.topCenter, 
                   end: Alignment.bottomCenter,
                 ),
               ),
@@ -124,7 +125,7 @@ class _Chats extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({super.key});
+  const _EmptyState();
 
   @override
   Widget build(BuildContext context) {

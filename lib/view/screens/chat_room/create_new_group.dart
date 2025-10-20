@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:get/get_core/src/get_main.dart';
-import 'package:get/get_navigation/get_navigation.dart';
+import 'package:get/get.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
+import 'package:manifesto_md/controllers/create_group_controller.dart';
 import 'package:manifesto_md/view/screens/chat_room/add_group_members.dart';
-import 'package:manifesto_md/view/widget/common_image_view_widget.dart';
 import 'package:manifesto_md/view/widget/custom_app_bar.dart';
 import 'package:manifesto_md/view/widget/custom_container_widget.dart';
 import 'package:manifesto_md/view/widget/custom_switch_tile_widget.dart';
@@ -14,7 +13,14 @@ import 'package:manifesto_md/view/widget/my_text_field_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
 
 class CreateNewGroup extends StatelessWidget {
-  const CreateNewGroup({super.key});
+   CreateNewGroup({super.key});
+
+  final CreateGroupController createNewGroup = Get.find();
+
+    final groupName = TextEditingController();
+
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +105,10 @@ class CreateNewGroup extends StatelessWidget {
             SizedBox(height: 40),
             MyTextField(
               labelPrefix: Assets.imagesGroupName,
+              controller: groupName,
+             onChanged: (value) {
+               createNewGroup.name.value = value;
+             },
               labelText: 'Group Name',
               hintText: 'abc 123',
             ),

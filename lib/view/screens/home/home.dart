@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:manifesto_md/config/bindings/app_bindings.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
@@ -194,7 +195,7 @@ class Home extends StatelessWidget {
                             Get.to(() => QuickAccessManagement());
                             break;
                           case 'Chat Room':
-                            Get.to(() => ChatRoom());
+                            Get.to(() => ChatRoom(), );
                             break;
                           case 'Tools & Calculator':
                             Get.to(() => ToolsCalculators());

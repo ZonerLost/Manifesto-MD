@@ -73,7 +73,7 @@ class CustomDropDown extends StatelessWidget {
             ),
           DropdownButtonHideUnderline(
             child: DropdownButton2<String>(
-              value: items!.contains(selectedValue) ? selectedValue : null,
+              value: items!.contains(selectedValue) ? selectedValue : hint,
               items: items!
                   .map((item) => DropdownMenuItem<String>(
                         value: item,

@@ -50,19 +50,21 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCBr-BTgPBV3vnoMIz8bAneIpMp-jwbai8',
-    appId: '1:1049903749089:android:396cebe6be55a91c1ae4a0',
-    messagingSenderId: '1049903749089',
-    projectId: 'manifestomd-a306c',
-    storageBucket: 'manifestomd-a306c.firebasestorage.app',
+    apiKey: 'AIzaSyAS66UkMnHtl1zKTNQNawG5Xg_SS2g7iW0',
+    appId: '1:970427068745:android:3c59424713d35266b66a98',
+    messagingSenderId: '970427068745',
+    projectId: 'manifesto-md',
+    storageBucket: 'manifesto-md.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyC26tDS-e0cWpQnxql9oJ0UoNkaIQYKjYY',
-    appId: '1:1049903749089:ios:e1f8f6c7fd7c814e1ae4a0',
-    messagingSenderId: '1049903749089',
-    projectId: 'manifestomd-a306c',
-    storageBucket: 'manifestomd-a306c.firebasestorage.app',
+    apiKey: 'AIzaSyCGPtqUVmn78O6ed66cgl4514wRwrvUjTk',
+    appId: '1:970427068745:ios:70c5889dc190aa1cb66a98',
+    messagingSenderId: '970427068745',
+    projectId: 'manifesto-md',
+    storageBucket: 'manifesto-md.firebasestorage.app',
+    iosClientId: '970427068745-3dpg6nej1o09of861hsm3fincnq2arip.apps.googleusercontent.com',
     iosBundleId: 'com.example.manifestomd',
   );
+
 }
