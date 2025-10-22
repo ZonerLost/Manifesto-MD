@@ -1,12 +1,19 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:manifesto_md/models/user_group_model.dart';
+import 'package:manifesto_md/services/profile_service.dart';
 import '../services/chat_service.dart';
 import '../models/chat_message_model.dart';
 
 class ChatController extends GetxController {
   ChatController(this.groupId);
   final String groupId;
+
+ StreamSubscription? _membersSub;
+final members = <UserLite>[].obs;
+  RxString userId = "".obs;
+
 
   // UI state
   final messages = <ChatMessage>[].obs;
@@ -18,21 +25,29 @@ class ChatController extends GetxController {
 
   StreamSubscription<List<ChatMessage>>? _sub;
 
+
   @override
   void onInit() {
     super.onInit();
     _sub = ChatService.instance
         .messagesStream(groupId, limit: 200)
         .listen(messages.assignAll);
+     _membersSub = ChatService.instance
+        .acceptedMembersProfilesStream(groupId)
+        .listen(members.assignAll);
   }
 
-  Future<void> send() async {
+
+
+
+  Future<void> send(String senderName) async {
     final txt = input.text.trim();
     if (txt.isEmpty) return;
 
     isSending.value = true;
     try {
-      await ChatService.instance.sendTextMessage(groupId: groupId, text: txt);
+      await ChatService.instance.sendTextMessage(groupId: groupId,
+      text: txt, senderName: senderName);
       input.clear();
     } catch (e) {
       Get.snackbar('Send failed', '$e', snackPosition: SnackPosition.BOTTOM);
@@ -40,6 +55,7 @@ class ChatController extends GetxController {
       isSending.value = false;
     }
   }
+
 
   Future<void> startEdit(ChatMessage m) async {
     editingMessageId.value = m.id;
@@ -86,10 +102,10 @@ class ChatController extends GetxController {
   void onTypingChanged(bool isTyping) {
     ChatService.instance.setTyping(groupId, isTyping);
   }
-
-  @override
+ @override
   void onClose() {
-    _sub?.cancel();
+    _membersSub?.cancel();
+     _sub?.cancel();
     input.dispose();
     super.onClose();
   }

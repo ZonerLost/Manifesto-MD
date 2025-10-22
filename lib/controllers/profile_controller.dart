@@ -15,6 +15,9 @@ class ProfileController extends GetxController {
   RxDouble profileCompletion = 0.0.obs; 
 
 
+  
+
+
 
   Future<void> fetchProfile() async {
     isLoading.value = true;
@@ -22,14 +25,15 @@ class ProfileController extends GetxController {
       final userId = await SharePrefService.instance.getUserId();
       if (userId == null || userId.isEmpty) throw Exception("No user ID found");
 
+        print(userId);
+
       final professionalModelData = await ProfileService.instance.getProfessionalDetails(userId);
-     
       final data = await ProfileService.instance.getProfile(userId);
       profile.value = data;
       imageUrl.value = data?.photoUrl ?? '';
       professionalDetails.value = professionalModelData!['Details'];
       docId.value = professionalModelData['docId'];
-      print(professionalDetails.value!.speciality);
+      print(professionalDetails.value?.speciality);
       _calculateProfileCompletion();
     } catch (e) {
       print("Fetch profile error: $e");

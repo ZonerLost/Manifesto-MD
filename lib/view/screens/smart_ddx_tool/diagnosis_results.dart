@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
+import 'package:manifesto_md/controllers/gemini_controller.dart';
 import 'package:manifesto_md/utils/global_instances.dart';
 import 'package:manifesto_md/view/widget/custom_app_bar.dart';
 import 'package:manifesto_md/view/widget/custom_container_widget.dart';
@@ -11,10 +12,20 @@ import 'package:manifesto_md/view/widget/my_text_widget.dart';
 import 'package:step_progress_indicator/step_progress_indicator.dart';
 
 class DiagnosisResults extends StatelessWidget {
+  final List<String> listSelectedSymptoms;
+
+  DiagnosisResults({required this.listSelectedSymptoms});
+
+  final GeminiController geminiController = Get.find();
+
   @override
   Widget build(BuildContext context) {
-    return CustomContainer(
-      child: Scaffold(
+    return Obx(() =>  geminiController.isLoading.value ? 
+            Center(child: CircularProgressIndicator()) :
+                        geminiController.diagnoses.isEmpty ?
+           const Center(child: Text('No diagnoses found')) :
+         CustomContainer(
+      child:   Scaffold(
         backgroundColor: Colors.transparent,
         appBar: simpleAppBar(
           title: 'Diagnosis Result',
@@ -177,52 +188,27 @@ class DiagnosisResults extends StatelessWidget {
                     weight: FontWeight.w600,
                     paddingBottom: 10,
                   ),
-                  _ReportCard(
-                    title: 'Upper Gastrointestinal Bleed',
-                    totalSteps: 4,
-                    currentStep: 3,
-                    description:
-                        'Bleeding from the esophagus, stomach, or duodenum. Often caused by peptic ulcer, varices, or gastritis.',
-                    redFlagAlert: 'Immediate medical attention required.',
-                    suggestedActions: [
-                      'Urgent endoscopy',
-                      'Hospital admission for monitoring',
-                      'IV fluids, blood transfusion if unstable',
-                    ],
-                  ),
-                  _ReportCard(
-                    title: 'Upper Gastrointestinal Bleed',
-                    totalSteps: 4,
-                    currentStep: 2,
-                    description:
-                        'Dilated veins in the esophagus that can rupture and bleed. Common in liver cirrhosis patients.',
-                    redFlagAlert:
-                        'Life-threatening! Immediate medical attention required.',
-                    suggestedActions: [
-                      'Urgent endoscopy',
-                      'Hospital admission for monitoring',
-                      'IV fluids, blood transfusion if unstable',
-                    ],
-                  ),
-                  _ReportCard(
-                    title: ' Gastric Ulcer / Peptic Ulcer',
-                    totalSteps: 4,
-                    currentStep: 1,
-                    description:
-                        'Erosion of stomach lining due to H. pylori or NSAIDs. Can lead to bleeding or perforation.',
-                    redFlagAlert: '',
-                    suggestedActions: [
-                      'Urgent endoscopy',
-                      'Hospital admission for monitoring',
-                      'IV fluids, blood transfusion if unstable',
-                    ],
-                  ),
+
+                  ...geminiController.diagnoses.map((e) =>  _ReportCard(
+                  title: e['title'] ?? 'Unknown Condition',
+                  totalSteps: e['totalSteps'] ?? 1,
+                  currentStep: e['currentStep'] ?? 1,
+                  description: e['description'] ?? '',
+                  redFlagAlert: e['redFlagAlert'] ?? '',
+                  suggestedActions:
+                      List<String>.from(e['suggestedActions'] ?? []),
+                
+                  ),).toList()
+
+                 
+                  
                 ],
               ),
             ),
           ],
         ),
       ),
+         )
     );
   }
 }

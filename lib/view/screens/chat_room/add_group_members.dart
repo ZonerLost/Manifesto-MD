@@ -71,11 +71,15 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
             ? Padding(
                 padding: const EdgeInsets.only(right: 5, bottom: 15),
                 child: GestureDetector(
-                  onTap: () {
-                    // selection already stored in controller.selected
-                    Get.back(); // or Navigator.pop(context);
+                  onTap: () async {
+                  String resp = await c.submit();
+                  if(resp.isNotEmpty){
+                    Get.back();
+                    Get.back();
+                   
+                  }
                   },
-                  child: Image.asset(Assets.imagesDone, height: 48),
+                  child:c.isSubmitting.value  ? Center(child: CircularProgressIndicator.adaptive(),) : Image.asset(Assets.imagesDone, height: 48),
                 ),
               )
             : const SizedBox.shrink()),
@@ -128,7 +132,7 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
             physics: const BouncingScrollPhysics(),
             children: [
               // Search
-              Padding(
+              Padding( 
                 padding: AppSizes.HORIZONTAL,
                 child: CustomSearchBar(
                   hintText: 'Search Name or Email',
@@ -281,7 +285,6 @@ class _MemberTile extends StatelessWidget {
   final VoidCallback onTap;
 
   const _MemberTile({
-    super.key,
     required this.name,
     required this.email,
     required this.imageUrl,

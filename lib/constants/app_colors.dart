@@ -13,5 +13,6 @@ const kOrangeColor = Color(0xffFF7A05);
 const kLightRedColor = Color(0xffF2E0E0);
 const kBlueColor = Color(0xff2b97ec);
 const kGreenColor = Color(0xff07DDA7);
+const ksecondaryButtonColor = Color(0xffE2F8F7);
 const kLightGreenColor = Color(0xffCCE6E6);
 

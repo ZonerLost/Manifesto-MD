@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:manifesto_md/config/bindings/app_bindings.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_fonts.dart';
 import 'package:manifesto_md/constants/app_images.dart';
@@ -11,7 +12,8 @@ import 'package:manifesto_md/view/widget/custom_search_bar_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
 
 class ChatRoom extends StatelessWidget {
-  const ChatRoom({super.key});
+   ChatRoom({super.key});
+
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +53,7 @@ class ChatRoom extends StatelessWidget {
                     Center(
                       child: GestureDetector(
                         onTap: () {
-                          Get.to(() => ChatNotifications());
+                          Get.to(() => ChatNotifications(), binding: AppBindings());
                         },
                         child: Image.asset(
                           Assets.imagesNotifications,

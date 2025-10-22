@@ -1,71 +1,84 @@
 import 'package:flutter/material.dart';
-import 'package:get/get_core/src/get_main.dart';
-import 'package:get/get_navigation/get_navigation.dart';
+import 'package:get/get.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
-import 'package:manifesto_md/view/screens/chat_room/chat_screen.dart';
+import 'package:manifesto_md/controllers/create_group_controller.dart';
 import 'package:manifesto_md/view/widget/custom_app_bar.dart';
 import 'package:manifesto_md/view/widget/custom_container_widget.dart';
 import 'package:manifesto_md/view/widget/my_button_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
 
 class ChatNotifications extends StatelessWidget {
-  const ChatNotifications({super.key});
+  ChatNotifications({super.key});
+
+  final CreateGroupController controller = Get.find();
 
   @override
   Widget build(BuildContext context) {
-    List notifications = [
-      {
-        'name': 'john',
-        'message':
-            "You have been invited to join Medicine group by john. Do you want to join?",
-        'negativeButtonText': 'Deny',
-        'positiveButtonText': 'Approve',
-        'onNegativeTap': () {
-          // Handle deny action
-        },
-        'onPositiveTap': () {
-          // Handle approve action
-        },
-      },
-      {
-        'name': 'Smith',
-        'message':
-            "Invitation declined! Smith has declined your group invitation to Medicine group.",
-        'negativeButtonText': 'Leave',
-        'positiveButtonText': 'Send Again',
-        'onNegativeTap': () {
-          // Handle leave action
-        },
-        'onPositiveTap': () {
-          // Handle send again action
-        },
-      },
-    ];
     return CustomContainer(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: simpleAppBar(title: 'Notification'),
-        body: ListView.separated(
-          itemCount: notifications.length,
-          padding: AppSizes.DEFAULT,
-          physics: BouncingScrollPhysics(),
-          shrinkWrap: true,
-          itemBuilder: (context, index) {
-            final notification = notifications[index];
-            return _NotificationTile(
-              name: notification['name'],
-              message: notification['message'],
-              negativeButtonText: notification['negativeButtonText'],
-              positiveButtonText: notification['positiveButtonText'],
-              onNegativeTap: notification['onNegativeTap'],
-              onPositiveTap: notification['onPositiveTap'],
+        appBar: simpleAppBar(title: 'Notifications'),
+        body: Obx(() {
+          if (controller.isLoadingNotifications.value) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(12.0),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             );
-          },
-          separatorBuilder: (context, index) {
-            return SizedBox(height: 16);
-          },
-        ),
+          }
+
+          if (controller.notifications.isEmpty) {
+            return const Center(child: Text("No notifications yet."));
+          }
+
+          final notifications = controller.notifications;
+
+          return ListView.separated(
+            padding: AppSizes.DEFAULT,
+            physics: const BouncingScrollPhysics(),
+            itemCount: notifications.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final n = notifications[index];
+
+              final name = n.senderName;
+              final message =
+                  "You have been invited to join '${n.groupName ?? 'a group'}' by ${n.senderName}. Do you want to join?'";
+
+              final isPending = n.isPending;
+              final isAccepted = n.isAccepted;
+              final isRejected = n.isRejected;
+
+              return _NotificationTile(
+                name: name,
+                message: message,
+                isAccepting: controller.isAccepting.value,
+                isRejecting: controller.isRejecting.value,
+                negativeButtonText:
+                    isPending ? 'Reject' : isRejected ? 'Rejected' : '',
+                positiveButtonText:
+                    isPending ? 'Accept' : isAccepted ? 'Accepted' : '',
+                onNegativeTap: isPending
+                    ? () => controller.rejectInvite(n)
+                    : () {},
+                onPositiveTap: isPending
+                    ? () => controller.acceptInvite(n)
+                    : () {
+                        if (isAccepted) {
+                          // Get.to(() => ChatScreen(
+                          //       projectId: n.groupId ?? '',
+                          //       projectName: n.groupName ?? '',
+                          //       collaboratorIds: const [],
+                          //       collaboratorEmails: const [],
+                          //     ));
+                        }
+                      },
+              );
+            },
+          );
+        }),
       ),
     );
   }
@@ -76,6 +89,8 @@ class _NotificationTile extends StatelessWidget {
   final String message;
   final String negativeButtonText;
   final String positiveButtonText;
+  final bool isAccepting;
+  final bool isRejecting;
   final VoidCallback onNegativeTap;
   final VoidCallback onPositiveTap;
 
@@ -87,89 +102,97 @@ class _NotificationTile extends StatelessWidget {
     required this.positiveButtonText,
     required this.onNegativeTap,
     required this.onPositiveTap,
+    this.isAccepting = false, 
+    this.isRejecting = false
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        Get.to(() => ChatScreen());
-      },
-      child: Container(
-        padding: EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: kPrimaryColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: kBorderColor, width: 1),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Container(
-                  height: 40,
-                  width: 40,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: kBorderColor,
-                  ),
-                  child: Center(
-                    child: MyText(
-                      text:
-                          name.isNotEmpty
-                              ? name
-                                  .trim()
-                                  .split(' ')
-                                  .map((e) => e.isNotEmpty ? e[0] : '')
-                                  .take(2)
-                                  .join()
-                                  .toUpperCase()
-                              : '',
-                      size: 16,
-                      weight: FontWeight.w600,
-                    ),
-                  ),
+    final initials = name.isNotEmpty
+        ? name
+            .trim()
+            .split(' ')
+            .where((e) => e.isNotEmpty)
+            .map((e) => e[0])
+            .take(2)
+            .join()
+            .toUpperCase()
+        : '';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: kPrimaryColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kBorderColor, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 4,
+        children: [
+          Row(
+            children: [
+              Container(
+                height: 40,
+                width: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: kBorderColor,
                 ),
-                SizedBox(width: 12),
-                Expanded(
+                child: Center(
                   child: MyText(
-                    text: message,
-                    size: 12,
-                    lineHeight: 1.5,
+                    text: initials,
+                    size: 16,
                     weight: FontWeight.w600,
                   ),
                 ),
-              ],
-            ),
-            SizedBox(height: 12),
-            Row(
-              children: [
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: MyText(
+                  text: message,
+                  size: 14,
+                  lineHeight: 1.5,
+                  weight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (negativeButtonText.isNotEmpty)
                 Expanded(
-                  child: MyBorderButton(
-                    textSize: 12,
-                    height: 35,
+                  child: MyButton(
+                    textSize: 14,
+                    height: 40,
                     radius: 12,
-                    weight: FontWeight.w500,
+                    isLoading: isRejecting,
+                    weight: FontWeight.bold,
+                    textColor: Colors.black,
+                    bgColor: ksecondaryButtonColor,
                     buttonText: negativeButtonText,
                     onTap: onNegativeTap,
                   ),
                 ),
-                SizedBox(width: 10),
+              if (negativeButtonText.isNotEmpty &&
+                  positiveButtonText.isNotEmpty)
+                const SizedBox(width: 10),
+              if (positiveButtonText.isNotEmpty)
                 Expanded(
                   child: MyButton(
-                    textSize: 12,
-                    height: 35,
+                    textSize: 14,
+                    height: 40,
                     radius: 12,
-                    weight: FontWeight.w500,
+                    isLoading: isAccepting,
+                    weight: FontWeight.bold,
                     buttonText: positiveButtonText,
                     onTap: onPositiveTap,
                   ),
                 ),
-              ],
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }

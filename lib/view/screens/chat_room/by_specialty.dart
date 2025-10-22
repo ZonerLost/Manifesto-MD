@@ -1,10 +1,15 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get_core/src/get_main.dart';
-import 'package:get/get_navigation/get_navigation.dart';
+import 'package:get/get.dart';
 import 'package:manifesto_md/config/bindings/app_bindings.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
+import 'package:manifesto_md/controllers/chat_controller.dart';
+import 'package:manifesto_md/controllers/create_group_controller.dart';
+import 'package:manifesto_md/controllers/profile_controller.dart';
+import 'package:manifesto_md/models/groups_model.dart';
+import 'package:manifesto_md/view/screens/chat_room/chat_screen.dart';
 import 'package:manifesto_md/view/screens/chat_room/create_new_group.dart';
 import 'package:manifesto_md/view/widget/chat_head_tile_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
@@ -17,25 +22,40 @@ class BySpecialty extends StatefulWidget {
 }
 
 class _BySpecialtyState extends State<BySpecialty> {
-  bool _showEmptyState = true;
+late final CreateGroupController groupController;
+late final ChatController chatController;
+final ProfileController profileController = Get.find();
+
+
+
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _showEmptyState = false;
-        });
-      }
-    });
+
+    profileController.fetchProfile();
+    // Register (or reuse) the controller when this tab/screen is created
+    if (Get.isRegistered<CreateGroupController>() ) {
+      groupController = Get.find<CreateGroupController>();
+    
+      
+    } else {
+      // Use Get.put so the instance is created immediately and returned
+      groupController = Get.put(CreateGroupController());
+
+      // If you prefer lazy:
+      // Get.lazyPut(() => CreateGroupController());
+      // groupController = Get.find<CreateGroupController>();
+    }
+  
   }
+
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    return Obx(() =>  Stack(
       children: [
-        _showEmptyState ? const _EmptyState() : _Chats(),
+        groupController.showInitialLoader.value ? const Center(child: CircularProgressIndicator()) : _Chats(),
 
         Positioned(
           right: 20,
@@ -72,57 +92,51 @@ class _BySpecialtyState extends State<BySpecialty> {
           ),
         ),
       ],
+    )
     );
   }
 }
 
 class _Chats extends StatelessWidget {
-  final List<Map<String, String>> chatGroups = [
-    {
-      'initials': 'IM',
-      'name': 'Internal Medicine',
-      'unread': '2',
-      'time': 'Yesterday,3:45 PM',
-      'message': 'Dr. Ayesha: How to manage high INR...',
-    },
-    {
-      'initials': 'PD',
-      'name': 'Pediatrics',
-      'unread': '',
-      'time': 'Yesterday',
-      'message': 'Dr. Ayesha: How to manage high INR...',
-    },
-    {
-      'initials': 'EM',
-      'name': 'Emergency Medicine',
-      'unread': '',
-      'time': 'Yesterday',
-      'message': 'Dr. Ayesha: How to manage high INR...',
-    },
-  ];
+  _Chats({super.key});
+
+  final CreateGroupController c = Get.find<CreateGroupController>();
+
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      itemCount: chatGroups.length,
-      padding: AppSizes.DEFAULT,
-      physics: BouncingScrollPhysics(),
-      shrinkWrap: true,
-      separatorBuilder: (BuildContext context, int index) {
-        return SizedBox(height: 12);
-      },
-      itemBuilder: (BuildContext context, int index) {
-        return ChatHeadTile(
-          name: chatGroups[index]['name'] ?? '',
-          time: chatGroups[index]['time'] ?? '',
-          message: chatGroups[index]['message'] ?? '',
-          unread: chatGroups[index]['unread'] ?? '',
-          imageUrl: '',
-          seen: false,
-        );
-      },
-    );
+    return Obx(() {
+      final owned = c.ownedGroups;
+      final joined = c.joinedGroups;
+
+      // If both empty, show the empty state (parent will overlay FAB)
+      if (owned.isEmpty && joined.isEmpty) {
+        return const _EmptyState();
+      }
+
+      // Build a combined list with section headers
+      final items = <_SectionItem>[];
+
+      if (owned.isNotEmpty) {
+        items.add(_SectionHeader('Owned groups'));
+        for (final g in owned) items.add(_GroupRow(g));
+      }
+      if (joined.isNotEmpty) {
+        if (items.isNotEmpty) items.add(_SpacerItem(12)); 
+        items.add(_SectionHeader('Joined groups'));
+        for (final g in joined) items.add(_GroupRow(g));
+      }
+
+      return ListView.separated(
+        padding: AppSizes.DEFAULT,
+        physics: const BouncingScrollPhysics(),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, i) => items[i].build(context),
+      );
+    });
   }
 }
+
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
@@ -150,5 +164,76 @@ class _EmptyState extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+// Lightweight section “item” protocol
+abstract class _SectionItem {
+  Widget build(BuildContext context);
+}
+
+class _SectionHeader implements _SectionItem {
+  final String title;
+  _SectionHeader(this.title);
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 4),
+      child: MyText(
+        text: title,
+        size: 12,
+        weight: FontWeight.w700,
+        color: kGreyColor,
+      ),
+    );
+  }
+}
+
+class _SpacerItem implements _SectionItem {
+  final double height;
+  _SpacerItem(this.height);
+  @override
+  Widget build(BuildContext context) => SizedBox(height: height);
+}
+
+class _GroupRow implements _SectionItem {
+  final Group g;
+  _GroupRow(this.g);
+
+  @override
+  Widget build(BuildContext context) {
+    final lastTime = _formatTime(g.lastMessageAt);
+    final lastMsg = (g.lastMessage ?? '').trim().isEmpty ? 'No messages yet' : g.lastMessage!;
+    return GestureDetector(
+      onTap: () {
+      
+        Get.to(() => ChatScreen(groupId: g.id, groupName: g.name,));
+      },
+      child: ChatHeadTile(
+        name: g.name,
+        time: lastTime,
+        message: lastMsg,
+        unread: '',
+        groupId: g.id,
+        groupName: g.name,               
+        imageUrl: g.avatarUrl ?? '',
+        seen: false,              
+      ),
+    );
+  }
+
+  String _formatTime(Timestamp? ts) {
+    if (ts == null) return '';
+    final dt = ts.toDate();
+    // Simple friendly formatter – swap for your app’s util if you have one
+    final now = DateTime.now();
+    final isToday = dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    if (isToday) {
+      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final m = dt.minute.toString().padLeft(2, '0');
+      final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+      return '$h:$m $ampm';
+    }
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
 }

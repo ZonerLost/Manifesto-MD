@@ -11,8 +11,11 @@ class ProfileService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
-   static const String _profCol = 'professional_details';
+  static const String _profCol = 'professional_details';
   static const String _profDocId = 'main'; 
+
+  
+
 
   /// ✅ Fetch user profile
   Future<AuthModel?> getProfile(String userId) async {
@@ -24,6 +27,9 @@ class ProfileService {
       throw Exception("Get profile error: $e");
     }
   }
+
+
+
 
 
   Future<Map<String, dynamic>?> getProfessionalDetails(String userId) async {

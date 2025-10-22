@@ -9,6 +9,8 @@ class ChatHeadTile extends StatelessWidget {
   final String name;
   final String time;
   final String message;
+  final String groupId;
+  final String groupName;
   final String unread;
   final String imageUrl;
   final bool seen;
@@ -21,6 +23,8 @@ class ChatHeadTile extends StatelessWidget {
     required this.unread,
     required this.imageUrl,
     required this.seen,
+    required this.groupId, 
+    required this.groupName
   }) : super(key: key);
 
   @override
@@ -32,7 +36,7 @@ class ChatHeadTile extends StatelessWidget {
         unread.toString().isNotEmpty;
     return GestureDetector(
       onTap: () {
-        Get.to(() => ChatScreen());
+        Get.to(() => ChatScreen(groupId: groupId, groupName: groupName, ));
       },
       child: Container(
         padding: EdgeInsets.all(12),

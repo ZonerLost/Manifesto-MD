@@ -3,9 +3,10 @@ import 'package:get/get.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
+import 'package:manifesto_md/constants/disease_data_list.dart';
+import 'package:manifesto_md/controllers/gemini_controller.dart';
 import 'package:manifesto_md/utils/global_instances.dart';
 import 'package:manifesto_md/view/screens/smart_ddx_tool/select_symptoms.dart';
-import 'package:manifesto_md/view/screens/smart_ddx_tool/smart_ddx_controller/smart_ddx_controller.dart';
 import 'package:manifesto_md/view/widget/custom_app_bar.dart';
 import 'package:manifesto_md/view/widget/custom_container_widget.dart';
 import 'package:manifesto_md/view/widget/custom_search_bar_widget.dart';
@@ -13,21 +14,11 @@ import 'package:manifesto_md/view/widget/my_text_widget.dart';
 
 class SmartDdxTool extends StatelessWidget {
   SmartDdxTool({super.key});
+
+
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> searchItems = [
-      {'image': Assets.imagesGs, 'title': 'General Symptoms'},
-      {'image': Assets.imagesSs, 'title': 'Skin Symptoms'},
-      {'image': Assets.imagesHn, 'title': 'Head & Neck'},
-      {'image': Assets.imagesKd, 'title': 'Kidneys'},
-      {'image': Assets.imagesCt, 'title': 'Chest'},
-      {'image': Assets.imagesArms, 'title': 'Arms'},
-      {'image': Assets.imagesAb, 'title': 'Abdomen'},
-      {'image': Assets.imagesPl, 'title': 'Pelvis'},
-      {'image': Assets.imagesBk, 'title': 'Back'},
-      {'image': Assets.imagesLg, 'title': 'Lungs'},
-      {'image': Assets.imagesLeg, 'title': 'Legs'},
-    ];
+  
     return CustomContainer(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -145,8 +136,9 @@ class SmartDdxTool extends StatelessWidget {
                     onTap: () {
                       Get.to(
                         () => SelectSymptoms(
-                          icon: searchItems[index]['image'],
-                          title: searchItems[index]['title'],
+                          icon: searchItems[index].image,
+                          title: searchItems[index].title,
+                          details: searchItems[index].symptoms,
                         ),
                       );
                     },
@@ -159,11 +151,11 @@ class SmartDdxTool extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          Image.asset(searchItems[index]['image'], height: 20),
+                          Image.asset(searchItems[index].image, height: 20),
                           Expanded(
                             child: MyText(
                               paddingLeft: 10,
-                              text: searchItems[index]['title'],
+                              text: searchItems[index].title,
                               size: 12,
                               color: kGreyColor,
                             ),

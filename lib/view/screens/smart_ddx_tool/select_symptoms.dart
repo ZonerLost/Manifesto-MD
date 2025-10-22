@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
+import 'package:manifesto_md/controllers/gemini_controller.dart';
 import 'package:manifesto_md/utils/global_instances.dart';
 import 'package:manifesto_md/view/screens/smart_ddx_tool/diagnosis_results.dart';
 import 'package:manifesto_md/view/widget/custom_check_box_widget.dart';
@@ -11,27 +12,39 @@ import 'package:manifesto_md/view/widget/my_button_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
 
 class SelectSymptoms extends StatefulWidget {
-  const SelectSymptoms({super.key, required this.icon, required this.title});
+  const SelectSymptoms({super.key, required this.icon, required this.details, required this.title});
   final String icon;
   final String title;
-
+  final List<String> details;
   @override
   State<SelectSymptoms> createState() => _SelectSymptomsState();
 }
 
 class _SelectSymptomsState extends State<SelectSymptoms> {
+
+  late final GeminiController geminiController;
+
+
+  @override
+  void initState() {
+    super.initState();
+
+   
+    // Register (or reuse) the controller when this tab/screen is created
+    if (Get.isRegistered<GeminiController>() ) {
+      geminiController = Get.find<GeminiController>();
+      
+    } else {
+      // Use Get.put so the instance is created immediately and returned
+      geminiController = Get.put(GeminiController());
+
+    }
+  
+  }
+
   @override
   Widget build(BuildContext context) {
-    final List items = [
-      'Burping',
-      'Pain around belly button',
-      'Nausea',
-      'Vomiting blood',
-      'Stomach inflammation',
-      'Reflux',
-      'Belly pain',
-      'Stomach pushes through diaphragm',
-    ];
+  
     return CustomContainer(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -67,12 +80,12 @@ class _SelectSymptomsState extends State<SelectSymptoms> {
                 shrinkWrap: true,
                 padding: AppSizes.DEFAULT,
                 physics: BouncingScrollPhysics(),
-                itemCount: items.length,
+                itemCount: widget.details.length,
                 separatorBuilder: (BuildContext context, int index) {
                   return SizedBox(height: 10);
                 },
                 itemBuilder: (BuildContext context, int index) {
-                  final String symptom = items[index];
+                  final String symptom = widget.details[index];
                   final bool isRedFlag = symptom == 'Vomiting blood';
                   final bool isSelected = smartDDxController.selectedSymptoms
                       .contains(symptom);
@@ -115,11 +128,17 @@ class _SelectSymptomsState extends State<SelectSymptoms> {
               () => Padding(
                 padding: AppSizes.DEFAULT,
                 child: MyButton(
+                  isLoading: geminiController.isLoading.value,
                   enabled: smartDDxController.selectedSymptoms.isNotEmpty,
                   buttonText: 'Find Possible Diagnoses',
-                  onTap: () {
+                  onTap: () async {
                     if (smartDDxController.selectedSymptoms.isNotEmpty) {
-                      Get.to(() => DiagnosisResults());
+                     var g = await geminiController.fetchDiagnosis(smartDDxController.selectedSymptoms);
+                      if(g == true){
+                          Get.to(() => DiagnosisResults(
+                        listSelectedSymptoms: smartDDxController.selectedSymptoms,
+                      ));
+                      }
                     }
                   },
                 ),

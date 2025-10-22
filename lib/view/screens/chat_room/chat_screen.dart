@@ -4,7 +4,10 @@ import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_fonts.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
+import 'package:manifesto_md/controllers/chat_controller.dart';
+import 'package:manifesto_md/controllers/profile_controller.dart';
 import 'package:manifesto_md/main.dart';
+import 'package:manifesto_md/models/chat_message_model.dart';
 import 'package:manifesto_md/view/screens/chat_room/group_details.dart';
 import 'package:manifesto_md/view/widget/common_image_view_widget.dart';
 import 'package:manifesto_md/view/widget/custom_check_box_widget.dart';
@@ -13,141 +16,97 @@ import 'package:manifesto_md/view/widget/my_button_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
 
 class ChatScreen extends StatefulWidget {
-  ChatScreen({Key? key}) : super(key: key);
+  final String groupId;
+  final String? groupName;
+
+  const ChatScreen({
+    Key? key,
+    required this.groupId,
+    this.groupName,
+  }) : super(key: key);
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
-}   
+}
 
 class _ChatScreenState extends State<ChatScreen> {
+  // keep your local text + scroll controllers (UI unchanged)
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  // Group messages by date for day-to-day chat separation
-  final Map<String, List<Map<String, dynamic>>> messagesByDate = {
-    "Yesterday": [
-      {
-        "text":
-            "Before LP, check CT brain to rule out any mass effect. Don’t forget fundoscopy.",
-        "isMe": false,
-        "name": "Dr. John",
-        "time": "09:05 AM",
-      },
-      {
-        "text":
-            "Agree. Also start empirical IV antibiotics — ceftriaxone + vancomycin + acyclovir. Don’t wait for LP.",
-        "isMe": true,
-        "name": "You",
-        "time": "09:07 AM",
-      },
-    ],
-    "Today": [
-      {
-        "text":
-            "Morning team, I just admitted a 65-year-old male with shortness of breath and bilateral leg swelling. BP is 150/90, HR 88. ECG is normal. What should I consider next?",
-        "isMe": false,
-        "name": "Dr. Alex Perry",
-        "time": "10:15 AM",
-      },
-      {
-        "text":
-            "Sounds like possible congestive heart failure. Did you check BNP and get a chest X-ray?",
-        "isMe": false,
-        "name": "Dr. Smith",
-        "time": "10:17 AM",
-      },
-    ],
-  };
 
-  // Helper to flatten messages for backward compatibility
-  List<Map<String, dynamic>> get messages {
-    final List<Map<String, dynamic>> all = [];
-    messagesByDate.forEach((date, msgs) => all.addAll(msgs));
-    return all;
-  }
+  late final ChatController c;
+final ProfileController profileController = Get.find();
+
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Get.bottomSheet(_ChatRoomConsent(), isScrollControlled: true);
-      _scrollToBottom();
+    // one controller per groupId; tag isolates instances
+    c = Get.put(ChatController(widget.groupId), tag: widget.groupId);
+
+    // keep local input in sync with controller input (UI unchanged)
+    _textController.addListener(() {
+      c.input.text = _textController.text;
+      c.input.selection = _textController.selection;
     });
+
+    
+    // autoscroll to latest
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    ever<List<ChatMessage>>(c.messages, (_) => _scrollToBottom());
   }
 
-  void _sendMessage() {
-    final text = _textController.text.trim();
-    if (text.isEmpty) return;
-    setState(() {
-      final now = TimeOfDay.now().format(context);
-      // Add to 'Today' group, or create if not present
-      final todayKey = "Today";
-      if (!messagesByDate.containsKey(todayKey)) {
-        messagesByDate[todayKey] = [];
-      }
-      messagesByDate[todayKey]!.add({
-        "text": text,
-        "isMe": true,
-        "name": "You",
-        "time": now,
-      });
-    });
-    _textController.clear();
-    _scrollToBottom();
-    _generateRandomReply();
-  }
+ 
 
-  void _generateRandomReply() async {
-    final List<String> replies = [
-      "That's interesting! Tell me more.",
-      "Can you explain further?",
-      "I agree with you.",
-      "Let's discuss this in detail.",
-      "Thanks for sharing!",
-      "Could you clarify that?",
-      "I'm not sure I understand.",
-      "Absolutely!",
-      "That's a good point.",
-      "I'll look into it.",
-    ];
-    await Future.delayed(
-      Duration(
-        milliseconds:
-            900 +
-            (2000 *
-                    (0.2 +
-                        0.6 *
-                            (DateTime.now().millisecondsSinceEpoch % 1000) /
-                            1000))
-                .toInt(),
-      ),
-    );
-    final reply = (replies..shuffle()).first;
-    setState(() {
-      final now = TimeOfDay.now().format(context);
-      final todayKey = "Today";
-      if (!messagesByDate.containsKey(todayKey)) {
-        messagesByDate[todayKey] = [];
-      }
-      messagesByDate[todayKey]!.add({
-        "text": reply,
-        "isMe": false,
-        "name": "Dr. John",
-        "time": now,
-      });
-    });
-    _scrollToBottom();
+  @override
+  void dispose() {
+    if (Get.isRegistered<ChatController>(tag: widget.groupId)) {
+      Get.delete<ChatController>(tag: widget.groupId);
+    }
+    _textController.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   void _scrollToBottom() {
-    Future.delayed(Duration(milliseconds: 100), () {
+    Future.delayed(const Duration(milliseconds: 100), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
-          0.0, // For reverse: true, scroll to top
-          duration: Duration(milliseconds: 300),
+          0.0, // reverse: true → latest is at top position 0
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
       }
     });
+  }
+
+  // ---- helpers: time + day labels (pure formatting, no UI change) -----------
+  String _fmtTime(DateTime? dt) {
+    if (dt == null) return '';
+    final t = TimeOfDay.fromDateTime(dt);
+    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final mm = t.minute.toString().padLeft(2, '0');
+    return '$h:$mm ${t.period == DayPeriod.am ? 'AM' : 'PM'}';
+  }
+
+  String _dayLabel(DateTime d) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final that = DateTime(d.year, d.month, d.day);
+    final diff = today.difference(that).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    return '${that.year}-${that.month.toString().padLeft(2, '0')}-${that.day.toString().padLeft(2, '0')}';
+  }
+
+  Map<String, List<ChatMessage>> _groupByDay(List<ChatMessage> items) {
+    final map = <String, List<ChatMessage>>{};
+    for (final m in items) {
+      final dt = m.createdAt; // ensure model exposes DateTime
+      final key = _dayLabel(dt ?? DateTime.now());
+      (map[key] ??= []).add(m);
+    }
+    return map;
   }
 
   @override
@@ -178,42 +137,49 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 child: Center(
                   child: MyText(
-                    // text:
-                    //     name.isNotEmpty
-                    //         ? name
-                    //             .trim()
-                    //             .split(' ')
-                    //             .map((e) => e.isNotEmpty ? e[0] : '')
-                    //             .take(2)
-                    //             .join()
-                    //             .toUpperCase()
-                    //         : '',
-                    text: 'IM',
+                    text: 'IM', // keeping your UI as-is
                     size: 16,
                     color: kTertiaryColor,
                     weight: FontWeight.w600,
                   ),
                 ),
               ),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     MyText(
-                      text: 'Internal Medicine',
+                      text: widget.groupName ??"" , // unchanged title UI
                       size: 14,
                       color: kTertiaryColor,
                       weight: FontWeight.w600,
                     ),
-                    MyText(
-                      paddingTop: 6,
-                      text: 'Smith, John, Alex, Perry, Alina, Carry Mo..',
-                      size: 10,
-                      maxLines: 1,
-                      textOverflow: TextOverflow.ellipsis,
-                      color: kGreyColor,
-                    ),
+                   Obx( () => Row(
+  children: [
+    // Show only first 4 members
+    ...c.members.take(4).map((e) => Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: MyText(
+            paddingTop: 6,
+            text: e.email!,
+            size: 10,
+            maxLines: 1,
+            textOverflow: TextOverflow.ellipsis,
+            color: kGreyColor,
+          ),
+        )),
+
+    if (c.members.length > 4)
+      MyText(
+        paddingTop: 6,
+        text: '+${c.members.length - 4} more',
+        size: 10,
+        color: kGreyColor,
+      ),
+  ],
+)
+  ),
                   ],
                 ),
               ),
@@ -222,87 +188,106 @@ class _ChatScreenState extends State<ChatScreen> {
           actions: [
             Center(
               child: GestureDetector(
-                onTap: () {
-                  Get.bottomSheet(_Options(), isScrollControlled: true);
-                },
+                onTap: () => Get.bottomSheet(const _Options(), isScrollControlled: true),
                 child: Image.asset(Assets.imagesMore, height: 24),
               ),
             ),
-            SizedBox(width: 20),
+            const SizedBox(width: 20),
           ],
           shape: Border(bottom: BorderSide(width: 1.0, color: kBorderColor)),
         ),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // ---------------- MESSAGES (live) ----------------
             Expanded(
-              child: ListView.builder(
-                reverse: true,
-                controller: _scrollController,
-                padding: AppSizes.DEFAULT,
-                physics: BouncingScrollPhysics(),
-                shrinkWrap: true,
-                itemCount: messagesByDate.length,
-                itemBuilder: (context, dateIndex) {
-                  // Reverse the date keys so 'Today' is always at the bottom with reverse:true
-                  final reversedDateKeys =
-                      messagesByDate.keys.toList().reversed.toList();
-                  final dateKey = reversedDateKeys[dateIndex];
-                  final chatList = messagesByDate[dateKey]!;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16.0),
-                        child: Center(
-                          child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: kPrimaryColor,
-                              borderRadius: BorderRadius.circular(50),
-                            ),
-                            child: MyText(
-                              text: dateKey,
-                              size: 10,
-                              color: kGreyColor,
-                              weight: FontWeight.w500,
+              child: Obx(() {
+                final items = c.messages; // ascending by createdAt from service
+                if (items.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: AppSizes.DEFAULT,
+                      child: MyText(
+                        text: 'No messages yet',
+                        size: 12,
+                        color: kGreyColor,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
+
+                // group by day for your existing day headers
+                final grouped = _groupByDay(items);
+                final dayKeys = grouped.keys.toList(); // insertion order follows iteration
+                // we want latest at bottom visually with reverse:true, so keep as-is and
+                // let reverse:true flip it (we’ll iterate reversed inside the builder)
+                return ListView.builder(
+                  reverse: true,
+                  controller: _scrollController,
+                  padding: AppSizes.DEFAULT,
+                  physics: const BouncingScrollPhysics(),
+                  shrinkWrap: true,
+                  itemCount: dayKeys.length,
+                  itemBuilder: (context, dateIndex) {
+                    // because reverse:true, pull from the end
+                    final dayKey = dayKeys[dayKeys.length - 1 - dateIndex];
+                    final chatList = grouped[dayKey]!;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16.0),
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: kPrimaryColor,
+                                borderRadius: BorderRadius.circular(50),
+                              ),
+                              child: MyText(
+                                text: dayKey,
+                                size: 10,
+                                color: kGreyColor,
+                                weight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      // Messages for this date (normal order)
-                      ListView.builder(
-                        itemCount: chatList.length,
-                        shrinkWrap: true,
-                        physics: NeverScrollableScrollPhysics(),
-                        itemBuilder: (context, msgIndex) {
-                          final msg = chatList[msgIndex];
-                          return Align(
-                            alignment:
-                                msg['isMe']
-                                    ? Alignment.centerRight
-                                    : Alignment.centerLeft,
-                            child:
-                                msg['isMe']
-                                    ? RightBubble(
-                                      text: msg['text'] ?? '',
-                                      time: msg['time'] ?? '',
+                        // messages of the day in natural order
+                        ListView.builder(
+                          itemCount: chatList.length,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemBuilder: (context, msgIndex) {
+                            final m = chatList[msgIndex];
+                            final isMe = m.senderId == profileController.profile.value!.uid;
+                            print(isMe);
+                            print(m.senderId);
+                            print(c.userId);
+
+                            return Align(
+                              alignment: isMe ? Alignment.centerLeft : Alignment.centerRight,
+                              child: isMe
+                                  ? RightBubble(
+                                      text: m.text,
+                                      time: _fmtTime(m.createdAt),
                                     )
-                                    : LeftBubble(
-                                      text: msg['text'] ?? '',
-                                      name: msg['name'] ?? '',
+                                  : LeftBubble(
+                                      text: m.text,
+                                      name: m.senderName ?? 'User',
                                     ),
-                          );
-                        },
-                      ),
-                    ],
-                  );
-                },
-              ),
+                            );
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                );
+              }),
             ),
+
+            // ---------------- INPUT ROW (unchanged UI, wired to controller) ---
             Padding(
               padding: AppSizes.DEFAULT,
               child: Row(
@@ -321,14 +306,19 @@ class _ChatScreenState extends State<ChatScreen> {
                             BoxShadow(
                               color: Colors.black.withValues(alpha: .05),
                               blurRadius: 4,
-                              offset: Offset(0, 2),
+                              offset: const Offset(0, 2),
                             ),
                           ],
                         ),
                         child: TextFormField(
                           textAlignVertical: TextAlignVertical.center,
-                          controller: _textController,
-                          onFieldSubmitted: (_) => _sendMessage(),
+                          controller: _textController, // keep your field
+                          onChanged: (v) => c.onTypingChanged(v.trim().isNotEmpty),
+                          onFieldSubmitted: (_) {
+
+                            c.send(profileController.profile.value?.name ?? "");
+                            _textController.clear();
+                          },
                           decoration: InputDecoration(
                             prefixIcon: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -337,7 +327,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               ],
                             ),
                             hintText: 'Type Message',
-                            hintStyle: TextStyle(
+                            hintStyle:  TextStyle(
                               color: kGreyColor,
                               fontSize: 14,
                               fontFamily: AppFonts.URBANIST,
@@ -347,12 +337,12 @@ class _ChatScreenState extends State<ChatScreen> {
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
                             disabledBorder: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(
+                            contentPadding: const EdgeInsets.symmetric(
                               vertical: 12,
                               horizontal: 0,
                             ),
                           ),
-                          style: TextStyle(
+                          style:  TextStyle(
                             color: kTertiaryColor,
                             fontSize: 14,
                             fontFamily: AppFonts.URBANIST,
@@ -363,8 +353,14 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                   GestureDetector(
-                    onTap: _sendMessage,
-                    child: Image.asset(Assets.imagesSend, height: 34),
+                    onTap: ()async{
+                      await c.send(profileController.profile.value?.name ?? "");
+                      _textController.clear();
+                    },
+                    child: Obx(() => Opacity(
+                          opacity: c.isSending.value ? 0.6 : 1,
+                          child: Image.asset(Assets.imagesSend, height: 34),
+                        )),
                   ),
                 ],
               ),
@@ -376,11 +372,12 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
+// ------------------ bubbles + bottom sheets (unchanged UI) -------------------
+
 class LeftBubble extends StatelessWidget {
   final String text;
   final String name;
-  const LeftBubble({required this.text, required this.name, Key? key})
-    : super(key: key);
+  const LeftBubble({required this.text, required this.name, Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -390,7 +387,7 @@ class LeftBubble extends StatelessWidget {
         spacing: 8,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CommonImageView(
+           CommonImageView(
             height: 30,
             width: 30,
             radius: 100,
@@ -402,8 +399,8 @@ class LeftBubble extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
                     color: kPrimaryColor,
                     borderRadius: BorderRadius.only(
                       topRight: Radius.circular(16),
@@ -443,8 +440,7 @@ class LeftBubble extends StatelessWidget {
 class RightBubble extends StatelessWidget {
   final String text;
   final String time;
-  const RightBubble({required this.text, required this.time, Key? key})
-    : super(key: key);
+  const RightBubble({required this.text, required this.time, Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -460,8 +456,8 @@ class RightBubble extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
                     color: kSecondaryColor,
                     borderRadius: BorderRadius.only(
                       topRight: Radius.circular(0),
@@ -480,8 +476,8 @@ class RightBubble extends StatelessWidget {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8, top: 0),
+           Padding(
+            padding: EdgeInsets.only(right: 8, top: 0),
             child: CommonImageView(
               height: 30,
               width: 30,
@@ -497,20 +493,23 @@ class RightBubble extends StatelessWidget {
 }
 
 class _Options extends StatelessWidget {
-  final List<String> _options = [
+  const _Options();
+
+  final List<String> _options = const [
     'Group Info',
     'Group Media',
     'Search',
     'Report',
     'Exit Group',
   ];
+
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: AppSizes.DEFAULT,
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        image: DecorationImage(
+        image: const DecorationImage(
           image: AssetImage(Assets.imagesMainBg),
           fit: BoxFit.cover,
         ),
@@ -538,21 +537,17 @@ class _Options extends StatelessWidget {
                         Get.to(() => GroupDetails());
                         break;
                       case 1:
-                        // Group Media
                         break;
                       case 2:
-                        // Search
                         break;
                       case 3:
-                        // Report
                         break;
                       case 4:
-                        // Exit Group
                         break;
                     }
                   },
                   child: Container(
-                    padding: EdgeInsets.all(14),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: kPrimaryColor,
                       border: Border.all(color: kBorderColor, width: 1),
@@ -561,8 +556,7 @@ class _Options extends StatelessWidget {
                     child: MyText(
                       text: _options[i],
                       size: 14,
-                      color:
-                          i == _options.length - 1 ? kRedColor : kTertiaryColor,
+                      color: i == _options.length - 1 ? kRedColor : kTertiaryColor,
                       weight: FontWeight.w600,
                     ),
                   ),
@@ -576,7 +570,9 @@ class _Options extends StatelessWidget {
 }
 
 class _ChatRoomConsent extends StatelessWidget {
-  final List<Map<String, String>> _options = [
+  const _ChatRoomConsent();
+
+  final List<Map<String, String>> _options = const [
     {
       "targetText": "Professional Use Only",
       "normalText":
@@ -608,13 +604,15 @@ class _ChatRoomConsent extends StatelessWidget {
           "Any violation of these rules may result in immediate and permanent suspension from the chat room.",
     },
   ];
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Container
+    (
       margin: AppSizes.DEFAULT,
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        image: DecorationImage(
+        image: const DecorationImage(
           image: AssetImage(Assets.imagesMainBg),
           fit: BoxFit.cover,
         ),
@@ -645,19 +643,19 @@ class _ChatRoomConsent extends StatelessWidget {
               for (int i = 0; i < _options.length; i++)
                 RichText(
                   text: TextSpan(
-                    style: TextStyle(
+                    style:  TextStyle(
                       fontSize: 12,
                       color: kTertiaryColor,
                       fontFamily: AppFonts.URBANIST,
                     ),
                     children: [
-                      TextSpan(
+                      const TextSpan(
                         text: '- ',
                         style: TextStyle(color: kSecondaryColor),
                       ),
                       TextSpan(
                         text: _options[i]['targetText'],
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       TextSpan(text: ' - ${_options[i]['normalText']}'),
                     ],
@@ -665,7 +663,7 @@ class _ChatRoomConsent extends StatelessWidget {
                 ),
             ],
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -682,13 +680,11 @@ class _ChatRoomConsent extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           MyButton(
             height: 44,
             buttonText: 'Continue',
-            onTap: () {
-              Get.back();
-            },
+            onTap: Get.back,
           ),
         ],
       ),

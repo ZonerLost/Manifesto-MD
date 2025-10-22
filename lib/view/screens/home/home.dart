@@ -189,7 +189,7 @@ class Home extends StatelessWidget {
                             Get.to(() => Investigation());
                             break;
                           case 'Smart DDx Tool':
-                            Get.to(() => SmartDdxTool());
+                            Get.to(() => SmartDdxTool(), binding: AppBindings());
                             break;
                           case 'Quick Access':
                             Get.to(() => QuickAccessManagement());
