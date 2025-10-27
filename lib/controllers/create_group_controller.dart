@@ -143,6 +143,8 @@ class CreateGroupController extends GetxController {
       if (gid != null) {
         // Navigate to chat if you want:
         Get.to(() => ChatScreen(groupId: gid));
+      isAccepting.value = false;
+
       }
     } catch (e) {
       print(e);

@@ -30,6 +30,28 @@ class _EditProfileState extends State<EditProfile> {
    String? selectedCountryName;
   String? selectedExpLevel;
 
+  final listProfessional = [
+                  'Medical Student',
+                  'Internship Doctor',
+                  'Resident',
+                  'General Practitioner',
+                  'Specialist / Consultant',
+                ];
+
+
+String? _matchOption(String? value, List<String> options) {
+    if (value == null) return null;
+    final v = value.trim().toLowerCase();
+    for (final opt in options) {
+      if (opt.toLowerCase().trim() == v) return opt; // exact (normalized) match
+    }
+    // soft startsWith/contains fallback (optional)
+    for (final opt in options) {
+      final o = opt.toLowerCase();
+      if (o.startsWith(v) || o.contains(v)) return opt;
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -37,9 +59,29 @@ class _EditProfileState extends State<EditProfile> {
     nameTextController.text = profileController.profile.value?.name ?? "";
     emailTextController.text = profileController.profile.value?.email ?? "";
     specialityTextController.text = profileController.professionalDetails.value?.speciality ?? "";
-    selectedExpLevel = profileController.professionalDetails.value?.professionalLevel ?? "";
-    final country = profileController.profile.value?.country ?? "";
-    selectedCountryName = countryList.contains(country) ? country : null;
+    selectedExpLevel = _matchOption(
+          profileController.professionalDetails.value?.professionalLevel,
+          listProfessional,
+        ) ?? listProfessional.first;
+     selectedCountryName = _matchOption(
+          profileController.profile.value?.country,
+          countryList,
+        ) ?? countryList.first;
+
+     ever(profileController.professionalDetails, (details) {
+      final m = _matchOption(details?.professionalLevel, listProfessional);
+      if (m != null && m != selectedExpLevel) {
+        setState(() => selectedExpLevel = m);
+      }
+    });
+
+       ever(profileController.profile, (p) {
+      final m = _matchOption(p?.country, countryList);
+      if (m != null && m != selectedCountryName) {
+        setState(() => selectedCountryName = m);
+      }
+    });
+
 
   }
 
@@ -118,13 +160,7 @@ class _EditProfileState extends State<EditProfile> {
               labelPrefix: Assets.imagesProfessinalLevelIcon,
               labelText: 'Professional Level',
               hint: 'General Practitioner',
-              items:[
-                  'AuthMedical Student',
-                  'Internship Doctor',
-                  'Resident',
-                  'General Practitioner',
-                  'Specialist / Consultant',
-                ],
+              items: listProfessional,
               selectedValue: selectedExpLevel,
               onChanged: (value) {
                 setState(() {

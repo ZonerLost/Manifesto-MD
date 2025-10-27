@@ -1,4 +1,4 @@
-package com.example.manifesto_md
+package com.example.manifestomd
 
 import io.flutter.embedding.android.FlutterActivity
 

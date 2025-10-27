@@ -18,7 +18,7 @@ class CustomContainer extends StatelessWidget {
           fit: BoxFit.cover,
         ),
       ),
-      child: child,
+      child: SafeArea(child: child!),
     );
   }
 }

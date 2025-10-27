@@ -34,7 +34,7 @@ class ProfileController extends GetxController {
       professionalDetails.value = professionalModelData!['Details'];
       docId.value = professionalModelData['docId'];
       print(professionalDetails.value?.speciality);
-      _calculateProfileCompletion();
+      calculateProfileCompletion();
     } catch (e) {
       print("Fetch profile error: $e");
     } finally {
@@ -93,7 +93,7 @@ Future<void> updateProfile(
         );
       }
 
-      _calculateProfileCompletion();
+      calculateProfileCompletion();
       profile.refresh();
       professionalDetails.refresh();
       Get.back();
@@ -127,7 +127,7 @@ Future<void> updateProfile(
   }
 
   /// ✅ Calculate profile completion %
-  void _calculateProfileCompletion() {
+  void calculateProfileCompletion() {
     final data = profile.value;
     if (data == null) {
       profileCompletion.value = 0.0;

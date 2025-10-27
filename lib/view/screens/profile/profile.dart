@@ -39,6 +39,7 @@ class _ProfileState extends State<Profile> {
   void initState() {
     super.initState();
       profileController.fetchProfile();
+      profileController.calculateProfileCompletion();
   }
   
   @override

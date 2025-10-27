@@ -4,7 +4,6 @@ import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
 import 'package:manifesto_md/constants/disease_data_list.dart';
-import 'package:manifesto_md/controllers/gemini_controller.dart';
 import 'package:manifesto_md/utils/global_instances.dart';
 import 'package:manifesto_md/view/screens/smart_ddx_tool/select_symptoms.dart';
 import 'package:manifesto_md/view/widget/custom_app_bar.dart';
@@ -15,6 +14,7 @@ import 'package:manifesto_md/view/widget/my_text_widget.dart';
 class SmartDdxTool extends StatelessWidget {
   SmartDdxTool({super.key});
 
+  final serachController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +31,10 @@ class SmartDdxTool extends StatelessWidget {
             children: [
               Padding(
                 padding: AppSizes.HORIZONTAL,
-                child: CustomSearchBar(hintText: 'Type your main symptom here'),
+                child: CustomSearchBar(
+                  controller: serachController,
+                  onChanged: smartDDxController.searchInList,
+                  hintText: 'Type your main symptom here'),
               ),
               SizedBox(height: 16),
               if (smartDDxController.selectedSymptoms.isNotEmpty) ...[
@@ -123,11 +126,22 @@ class SmartDdxTool extends StatelessWidget {
                   ],
                 ),
               ],
-              ListView.separated(
+              Obx( () {
+
+                   final items = smartDDxController.filteredItems;
+                if (items.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: Text('No matching results')),
+                  );
+                }
+
+              
+            return  ListView.separated(
                 shrinkWrap: true,
                 padding: AppSizes.HORIZONTAL,
                 physics: BouncingScrollPhysics(),
-                itemCount: searchItems.length,
+                itemCount: items.length,
                 separatorBuilder: (BuildContext context, int index) {
                   return SizedBox(height: 10);
                 },
@@ -136,11 +150,11 @@ class SmartDdxTool extends StatelessWidget {
                     onTap: () {
                       Get.to(
                         () => SelectSymptoms(
-                          icon: searchItems[index].image,
-                          title: searchItems[index].title,
-                          details: searchItems[index].symptoms,
+                          icon: items[index].image,
+                          title: items[index].title,
+                          details: items[index].symptoms,
                         ),
-                      );
+                      ); 
                     },
                     child: Container(
                       padding: EdgeInsets.all(12),
@@ -151,11 +165,11 @@ class SmartDdxTool extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          Image.asset(searchItems[index].image, height: 20),
+                          Image.asset(items[index].image, height: 20),
                           Expanded(
                             child: MyText(
                               paddingLeft: 10,
-                              text: searchItems[index].title,
+                              text: items[index].title,
                               size: 12,
                               color: kGreyColor,
                             ),
@@ -166,7 +180,9 @@ class SmartDdxTool extends StatelessWidget {
                     ),
                   );
                 },
-              ),
+              );
+              }
+              )
             ],
           ),
         ),

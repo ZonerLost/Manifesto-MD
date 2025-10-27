@@ -197,11 +197,7 @@ class DiagnosisResults extends StatelessWidget {
                   redFlagAlert: e['redFlagAlert'] ?? '',
                   suggestedActions:
                       List<String>.from(e['suggestedActions'] ?? []),
-                
                   ),).toList()
-
-                 
-                  
                 ],
               ),
             ),
