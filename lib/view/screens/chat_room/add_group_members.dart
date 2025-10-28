@@ -71,14 +71,40 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
             ? Padding(
                 padding: const EdgeInsets.only(right: 5, bottom: 15),
                 child: GestureDetector(
+                  // in _AddGroupMembersState build() -> floatingActionButton onTap:
+
                   onTap: () async {
-                  String resp = await c.submit();
-                  if(resp.isNotEmpty){
-                    Get.back();
-                    Get.back();
-                   
-                  }
+                    final args = Get.arguments as Map<String, dynamic>?;
+                    final existingGroupId = args?['groupId'] as String?;
+
+                    if (existingGroupId != null && existingGroupId.isNotEmpty) {
+                      // ADD MEMBERS to an EXISTING group (NO new group creation)
+                      try {
+                        c.isSubmitting.value = true;
+                        await c.inviteSelectedToExistingGroup(existingGroupId);
+                        Get.back(); // close member picker
+                        Get.snackbar('Invites sent', 'Selected members have been invited.');
+                      } catch (e) {
+                        Get.snackbar('Error', e.toString());
+                      } finally {
+                        c.isSubmitting.value = false;
+                      }
+                    } else {
+                      // CREATE a NEW group
+                      try {
+                        c.isSubmitting.value = true;
+                        final gid = await c.submit(); // creates the group
+                        // optionally navigate to chat screen here
+                        Get.back(); // close AddGroupMembers
+                        Get.back(); // close CreateNewGroup
+                      } catch (e) {
+                        Get.snackbar('Error', e.toString());
+                      } finally {
+                        c.isSubmitting.value = false;
+                      }
+                    }
                   },
+
                   child:c.isSubmitting.value  ? Center(child: CircularProgressIndicator.adaptive(),) : Image.asset(Assets.imagesDone, height: 48),
                 ),
               )

@@ -13,11 +13,11 @@ import 'package:manifesto_md/view/widget/my_text_field_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
 
 class CreateNewGroup extends StatelessWidget {
-   CreateNewGroup({super.key});
+  CreateNewGroup({super.key});
 
   final CreateGroupController createNewGroup = Get.find();
 
-    final groupName = TextEditingController();
+  final groupName = TextEditingController();
 
 
 
@@ -106,9 +106,9 @@ class CreateNewGroup extends StatelessWidget {
             MyTextField(
               labelPrefix: Assets.imagesGroupName,
               controller: groupName,
-             onChanged: (value) {
-               createNewGroup.name.value = value;
-             },
+              onChanged: (value) {
+                createNewGroup.name.value = value;
+              },
               labelText: 'Group Name',
               hintText: 'abc 123',
             ),

@@ -1,3 +1,4 @@
+// lib/view/screens/chat_room/chat_room.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:manifesto_md/config/bindings/app_bindings.dart';
@@ -11,13 +12,15 @@ import 'package:manifesto_md/view/widget/custom_container_widget.dart';
 import 'package:manifesto_md/view/widget/custom_search_bar_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
 
-class ChatRoom extends StatelessWidget {
-   ChatRoom({super.key});
+import 'create_new_group.dart';
 
+class ChatRoom extends StatelessWidget {
+  const ChatRoom({super.key});
 
   @override
   Widget build(BuildContext context) {
     const List<String> tabs = ['By Specialty', 'By Level', 'General Groups'];
+
     return DefaultTabController(
       length: tabs.length,
       initialIndex: 0,
@@ -65,7 +68,10 @@ class ChatRoom extends StatelessWidget {
                     Center(
                       child: GestureDetector(
                         onTap: () {
-                          Get.bottomSheet(_Options(), isScrollControlled: true);
+                          Get.bottomSheet(
+                            _ChatRoomOptions(),
+                            isScrollControlled: true,
+                          );
                         },
                         child: Image.asset(Assets.imagesMore, height: 24),
                       ),
@@ -113,7 +119,6 @@ class ChatRoom extends StatelessWidget {
                       ),
                     ),
                   ),
-
                   shape: Border(
                     bottom: BorderSide(color: kBorderColor, width: 1),
                   ),
@@ -131,8 +136,9 @@ class ChatRoom extends StatelessWidget {
   }
 }
 
-class _Options extends StatelessWidget {
+class _ChatRoomOptions extends StatelessWidget {
   final List<String> _options = ['New Group', 'Settings'];
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -161,7 +167,19 @@ class _Options extends StatelessWidget {
             children: [
               for (int i = 0; i < _options.length; i++)
                 GestureDetector(
-                  onTap: () {},
+                  onTap: () {
+                    switch (i) {
+                      case 0:
+                      // Navigate to create new group
+                        Get.to(() => CreateNewGroup());
+                        break;
+                      case 1:
+                      // TODO: Implement settings
+                        Get.snackbar('Coming Soon', 'Settings feature coming soon');
+                        break;
+                    }
+                    Get.back();
+                  },
                   child: Container(
                     padding: EdgeInsets.all(14),
                     decoration: BoxDecoration(
