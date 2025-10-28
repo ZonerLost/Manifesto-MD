@@ -113,22 +113,25 @@ class CreateGroupController extends GetxController {
     );
   }
 
-  // In CreateGroupController
-
   Future<void> inviteSelectedToExistingGroup(String groupId) async {
     if (selected.isEmpty) {
       throw 'Pick at least one member';
     }
     isSubmitting.value = true;
     try {
-      for (final uid in selected) {
-        await ChatService.instance.sendGroupInvite(
-          groupId: groupId,
-          receiverId: uid,
-        );
-      }
-      // clear selection so a later visit doesn’t re-use it
+      // Use the new inviteMembersToGroup method from ChatService
+      await ChatService.instance.inviteMembersToGroup(
+        groupId: groupId,
+        newMemberIds: selected.toList(),
+      );
+
+      // clear selection so a later visit doesn't re-use it
       selected.clear();
+
+      showCommonSnackbarWidget('Success', 'Invites sent successfully');
+    } catch (e) {
+      showCommonSnackbarWidget('Error', 'Failed to send invites: $e');
+      rethrow;
     } finally {
       isSubmitting.value = false;
     }
@@ -136,14 +139,21 @@ class CreateGroupController extends GetxController {
 
 // OPTIONAL: owner-only remove (ensure rules allow it)
   Future<void> removeMemberFromGroup(String groupId, String uid) async {
-    await FirebaseFirestore.instance
-        .collection('groups').doc(groupId)
-        .collection('members').doc(uid)
-        .delete();
+    try {
+      await FirebaseFirestore.instance
+          .collection('groups').doc(groupId)
+          .collection('members').doc(uid)
+          .delete();
 
-    await FirebaseFirestore.instance
-        .collection('groups').doc(groupId)
-        .update({'memberCount': FieldValue.increment(-1)});
+      await FirebaseFirestore.instance
+          .collection('groups').doc(groupId)
+          .update({'memberCount': FieldValue.increment(-1)});
+
+      showCommonSnackbarWidget('Success', 'Member removed successfully');
+    } catch (e) {
+      showCommonSnackbarWidget('Error', 'Failed to remove member: $e');
+      rethrow;
+    }
   }
 
 
@@ -317,8 +327,8 @@ class CreateGroupController extends GetxController {
         groupId: notif.groupId ?? "",
         accepted: true,
       );
-      showCommonSnackbarWidget('Invite Accepted', 'You’ve joined ${notif.groupName}');
-      if (gid != null) {
+      showCommonSnackbarWidget('Invite Accepted', 'You have joined ${notif.groupName}');
+          if (gid != null) {
         Get.to(() => ChatScreen(groupId: gid, groupName: notif.groupName));
       }
     } catch (e) {

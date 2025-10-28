@@ -11,30 +11,37 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/chat_message_model.dart';
+import '../models/user_group_model.dart';
 
 class ChatController extends GetxController {
   ChatController(this.groupId);
   final String groupId;
 
+  // Services
+  final FirebaseFirestore _fs = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final ImagePicker _picker = ImagePicker();
+
   // UI/state
   final RxList<ChatMessage> messages = <ChatMessage>[].obs;
+  final RxList<ChatMessage> filteredMessages = <ChatMessage>[].obs;
   final RxBool isSending = false.obs;
-  final RxList<Map<String, dynamic>> members = <Map<String, dynamic>>[].obs; // {id,email,name,photoUrl}
+  final RxList<UserLite> members = <UserLite>[].obs;
   final TextEditingController input = TextEditingController();
 
-  // typing
+  // Search
+  final RxString searchQuery = ''.obs;
+  final RxBool isSearching = false.obs;
+
+  // Typing
   final RxList<String> typingUsers = <String>[].obs;
   Timer? _typingClearTimer;
 
-  // services
-  final _fs = FirebaseFirestore.instance;
-  final _auth = FirebaseAuth.instance;
-  final _storage = FirebaseStorage.instance;
-  final _picker = ImagePicker();
-
+  // Subscriptions
   StreamSubscription? _msgSub;
   StreamSubscription? _typingSub;
-  StreamSubscription? _groupSub;
+  StreamSubscription? _membersSub;
 
   String get userId => _auth.currentUser?.uid ?? '';
   String get userEmail => _auth.currentUser?.email ?? '';
@@ -44,47 +51,81 @@ class ChatController extends GetxController {
 
   // ---- Firestore paths ------------------------------------------------------
   DocumentReference get _groupRef => _fs.collection('groups').doc(groupId);
-  CollectionReference get _msgCol =>
-      _groupRef.collection('messages');
-  CollectionReference get _typingCol =>
-      _groupRef.collection('typing');
+  CollectionReference get _msgCol => _groupRef.collection('messages');
+  CollectionReference get _typingCol => _groupRef.collection('typing');
 
   // ---- lifecycle ------------------------------------------------------------
   @override
   void onInit() {
     super.onInit();
 
-    // members live
-    _groupSub = _groupRef.snapshots().listen((snap) {
-      if (!snap.exists) return;
-      final data = snap.data() as Map<String, dynamic>;
-      final ids = List<String>.from(data['memberIds'] ?? []);
-      final names = Map<String, dynamic>.from(data['memberNames'] ?? {});
-      final emails = Map<String, dynamic>.from(data['memberEmailsMap'] ?? {}); // optional
-      final photos = Map<String, dynamic>.from(data['memberPhotos'] ?? {});
-      members.assignAll(ids.map((id) {
-        return {
-          'id': id,
-          'name': names[id] ?? '',
-          'email': emails[id] ?? '',
-          'photoUrl': photos[id] ?? '',
-        };
-      }));
-    });
+    _loadMessages();
+    _loadGroupMembers();
+    _listenToTyping();
 
-    // messages live (ascending)
+    // Listen to search query changes
+    ever(searchQuery, (query) {
+      if (query.isEmpty) {
+        isSearching.value = false;
+        filteredMessages.assignAll(messages);
+      } else {
+        isSearching.value = true;
+        _filterMessages(query);
+      }
+    });
+  }
+
+  void _loadMessages() {
+    // FIXED: Changed to ascending order to show latest messages at bottom (WhatsApp style)
     _msgSub = _msgCol
-        .orderBy('sentAt', descending: false)
+        .orderBy('sentAt', descending: false) // Ascending order - oldest first
         .snapshots()
         .listen((q) async {
       final list = q.docs.map((d) => ChatMessage.fromDoc(d)).toList();
       messages.assignAll(list);
+
+      // Apply search filter if active
+      if (searchQuery.value.isNotEmpty) {
+        _filterMessages(searchQuery.value);
+      } else {
+        filteredMessages.assignAll(list);
+      }
+
       // mark unread as read for me
       await markAllVisibleAsRead();
-      // update "delivered" if needed — optional here
     });
+  }
 
-    // typing live
+  void _loadGroupMembers() {
+    _membersSub = _fs
+        .collection('groups')
+        .doc(groupId)
+        .snapshots()
+        .asyncMap((groupDoc) async {
+      final groupData = groupDoc.data() as Map<String, dynamic>?;
+      if (groupData == null) return <UserLite>[];
+
+      final memberIds = List<String>.from(groupData['memberIds'] ?? []);
+      final memberNames = Map<String, String>.from(groupData['memberNames'] ?? {});
+      final memberEmails = Map<String, String>.from(groupData['memberEmailsMap'] ?? {});
+      final memberPhotos = Map<String, String>.from(groupData['memberPhotos'] ?? {});
+
+      final membersList = <UserLite>[];
+      for (final memberId in memberIds) {
+        membersList.add(UserLite(
+          uid: memberId,
+          displayName: memberNames[memberId] ?? 'User',
+          email: memberEmails[memberId] ?? '',
+          photoURL: memberPhotos[memberId] ?? '',
+        ));
+      }
+      return membersList;
+    }).listen((membersList) {
+      members.assignAll(membersList);
+    });
+  }
+
+  void _listenToTyping() {
     _typingSub = _typingCol
         .orderBy('timestamp', descending: true)
         .snapshots()
@@ -108,9 +149,35 @@ class ChatController extends GetxController {
   void onClose() {
     _msgSub?.cancel();
     _typingSub?.cancel();
-    _groupSub?.cancel();
+    _membersSub?.cancel();
     _stopTyping();
     super.onClose();
+  }
+
+  // ---- Search functionality -------------------------------------------------
+
+  void _filterMessages(String query) {
+    if (query.isEmpty) {
+      filteredMessages.assignAll(messages);
+      return;
+    }
+
+    final lowerQuery = query.toLowerCase();
+    final filtered = messages.where((message) {
+      return message.message.toLowerCase().contains(lowerQuery) ||
+          (message.userName ?? '').toLowerCase().contains(lowerQuery);
+    }).toList();
+
+    filteredMessages.assignAll(filtered);
+  }
+
+  void setSearchQuery(String query) {
+    searchQuery.value = query;
+  }
+
+  void clearSearch() {
+    searchQuery.value = '';
+    isSearching.value = false;
   }
 
   // ---- typing ---------------------------------------------------------------
@@ -145,8 +212,7 @@ class ChatController extends GetxController {
         type: 'text',
         replyTo: _replyingTo,
       );
-      input.clear();
-      _replyingTo = null;
+      // Text field is cleared in the UI immediately after this method
     } finally {
       isSending.value = false;
       onTypingChanged(false);
