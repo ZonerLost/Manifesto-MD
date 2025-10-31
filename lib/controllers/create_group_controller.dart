@@ -3,9 +3,11 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:get/get.dart';
 import 'package:manifesto_md/models/groups_model.dart';
 import 'package:manifesto_md/models/notifications_model.dart';
+import 'package:manifesto_md/view/screens/chat_room/chat_room.dart';
 import 'package:manifesto_md/view/screens/chat_room/chat_screen.dart';
 import 'package:manifesto_md/view/widget/show_common_snackbar_widget.dart';
 import '../services/chat_service.dart';
@@ -31,10 +33,17 @@ class CreateGroupController extends GetxController {
   final int pageSize = 50;
   DocumentSnapshot<Map<String, dynamic>>? _lastSnap;
 
-  // Optional avatar
-  String userName = "";
+  // Group avatar
   Uint8List? avatarBytes;
   String avatarExt = 'jpg';
+
+  // Group permissions
+  final permissions = <String, bool>{
+    'editGroupSettings': true,
+    'sendNewMessage': true,
+    'addOtherMembers': true,
+    'inviteViaLink': false,
+  }.obs;
 
   // Home screen top loader + notifications
   final showInitialLoader = true.obs;
@@ -70,6 +79,33 @@ class CreateGroupController extends GetxController {
     super.onClose();
   }
 
+  // Set group avatar
+  void setGroupAvatar(Uint8List bytes, String extension) {
+    avatarBytes = bytes;
+    avatarExt = extension;
+    update();
+  }
+
+  // Upload group icon to Firebase Storage
+  Future<String?> _uploadGroupIcon() async {
+    if (avatarBytes == null) return null;
+
+    try {
+      final storage = FirebaseStorage.instance;
+      final fileName = 'group_icons/${DateTime.now().millisecondsSinceEpoch}.$avatarExt';
+      final ref = storage.ref().child(fileName);
+
+      final uploadTask = ref.putData(avatarBytes!);
+      final snapshot = await uploadTask;
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+
+      return downloadUrl;
+    } catch (e) {
+      print('Error uploading group icon: $e');
+      return null;
+    }
+  }
+
   // ---------------------- Groups streams ----------------------
 
   void _bindGroups() {
@@ -89,14 +125,15 @@ class CreateGroupController extends GetxController {
           _gotOwned = true;
           _maybeHideInitialLoader();
         }
-        // ignore: avoid_print
         print('ownedGroups stream error: $e');
       },
     );
 
     _joinedSub = ChatService.instance.joinedGroupsStream().listen(
           (list) {
-        joinedGroups.assignAll(list);
+        // FIXED: Filter out owned groups from joined groups
+        final filteredJoined = list.where((group) => group.createdBy != myUid).toList();
+        joinedGroups.assignAll(filteredJoined);
         if (!_gotJoined) {
           _gotJoined = true;
           _maybeHideInitialLoader();
@@ -107,7 +144,6 @@ class CreateGroupController extends GetxController {
           _gotJoined = true;
           _maybeHideInitialLoader();
         }
-        // ignore: avoid_print
         print('joinedGroups stream error: $e');
       },
     );
@@ -119,15 +155,12 @@ class CreateGroupController extends GetxController {
     }
     isSubmitting.value = true;
     try {
-      // Use the new inviteMembersToGroup method from ChatService
       await ChatService.instance.inviteMembersToGroup(
         groupId: groupId,
         newMemberIds: selected.toList(),
       );
 
-      // clear selection so a later visit doesn't re-use it
       selected.clear();
-
       showCommonSnackbarWidget('Success', 'Invites sent successfully');
     } catch (e) {
       showCommonSnackbarWidget('Error', 'Failed to send invites: $e');
@@ -136,26 +169,6 @@ class CreateGroupController extends GetxController {
       isSubmitting.value = false;
     }
   }
-
-// OPTIONAL: owner-only remove (ensure rules allow it)
-  Future<void> removeMemberFromGroup(String groupId, String uid) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('groups').doc(groupId)
-          .collection('members').doc(uid)
-          .delete();
-
-      await FirebaseFirestore.instance
-          .collection('groups').doc(groupId)
-          .update({'memberCount': FieldValue.increment(-1)});
-
-      showCommonSnackbarWidget('Success', 'Member removed successfully');
-    } catch (e) {
-      showCommonSnackbarWidget('Error', 'Failed to remove member: $e');
-      rethrow;
-    }
-  }
-
 
   // ---------------------- Notifications stream ----------------------
 
@@ -177,7 +190,6 @@ class CreateGroupController extends GetxController {
             _gotNotifs = true;
             _maybeHideInitialLoader();
           }
-          // ignore: avoid_print
           print('Notification stream error: $err');
         },
       );
@@ -187,7 +199,6 @@ class CreateGroupController extends GetxController {
         _gotNotifs = true;
         _maybeHideInitialLoader();
       }
-      // ignore: avoid_print
       print('Failed to bind notifications: $e');
     }
   }
@@ -216,7 +227,6 @@ class CreateGroupController extends GetxController {
       QuerySnapshot<Map<String, dynamic>> snap;
 
       if (query.value.trim().isEmpty) {
-        // default ordering
         q = FirebaseFirestore.instance
             .collection('users')
             .orderBy('createdAt', descending: false)
@@ -226,7 +236,6 @@ class CreateGroupController extends GetxController {
         try {
           snap = await q.get();
         } on FirebaseException {
-          // fallback if index missing
           q = FirebaseFirestore.instance
               .collection('users')
               .orderBy(FieldPath.documentId)
@@ -237,7 +246,6 @@ class CreateGroupController extends GetxController {
       } else {
         final qLower = query.value.toLowerCase();
 
-        // try displayName_lower first
         try {
           q = FirebaseFirestore.instance
               .collection('users')
@@ -248,7 +256,6 @@ class CreateGroupController extends GetxController {
           if (_lastSnap != null) q = q.startAfterDocument(_lastSnap!);
           snap = await q.get();
         } on FirebaseException {
-          // fallback to email_lower
           try {
             q = FirebaseFirestore.instance
                 .collection('users')
@@ -259,7 +266,6 @@ class CreateGroupController extends GetxController {
             if (_lastSnap != null) q = q.startAfterDocument(_lastSnap!);
             snap = await q.get();
           } on FirebaseException {
-            // final fallback: doc id
             q = FirebaseFirestore.instance
                 .collection('users')
                 .orderBy(FieldPath.documentId)
@@ -289,7 +295,7 @@ class CreateGroupController extends GetxController {
     }
   }
 
-  // ---------------------- Selection helpers (single source of truth) ---------
+  // ---------------------- Selection helpers ---------
 
   void toggleUser(Map<String, dynamic> user) {
     final uid = user['id'] as String;
@@ -318,7 +324,103 @@ class CreateGroupController extends GetxController {
 
   void clearSelection() => selected.clear();
 
-  // ---------------------- Invites -------------------------------------------
+  // ---------------------- Submit (create group + invites) --------------------
+
+  Future<String> submit() async {
+    final n = name.value.trim();
+    if (n.isEmpty) throw 'Group name is required';
+    if (selected.isEmpty) throw 'Pick at least one member';
+
+    isSubmitting.value = true;
+    try {
+      // Upload group icon if exists
+      final String? groupIconUrl = await _uploadGroupIcon();
+
+      // FIXED: Get proper user data with correct field names
+      final membersData = <Map<String, dynamic>>[];
+      for (final uid in selected) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+        if (userDoc.exists) {
+          final userData = userDoc.data()!;
+          membersData.add({
+            'uid': uid,
+            'email': userData['email'] ?? '',
+            'displayName': userData['name'] ?? userData['displayName'] ?? 'User', // FIXED: Use 'name' field
+            'photoURL': userData['photoUrl'] ?? userData['photoURL'] ?? userData['imageUrl'] ?? '', // FIXED: Use 'photoUrl' field
+            'joinedAt': FieldValue.serverTimestamp(),
+            'role': 'member',
+          });
+        }
+      }
+
+      // Add current user as admin
+      final currentUserDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(myUid)
+          .get();
+      if (currentUserDoc.exists) {
+        final userData = currentUserDoc.data()!;
+        membersData.add({
+          'uid': myUid,
+          'email': userData['email'] ?? '',
+          'displayName': userData['name'] ?? userData['displayName'] ?? 'User', // FIXED: Use 'name' field
+          'photoURL': userData['photoUrl'] ?? userData['photoURL'] ?? userData['imageUrl'] ?? '', // FIXED: Use 'photoUrl' field
+          'joinedAt': FieldValue.serverTimestamp(),
+          'role': 'admin',
+        });
+      }
+
+      final gid = await ChatService.instance.createGroupFlow(
+        name: n,
+        memberIds: selected.toList(),
+        avatarBytes: avatarBytes,
+        avatarFileExt: avatarExt,
+        groupIconUrl: groupIconUrl,
+        permissions: permissions,
+        membersData: membersData,
+      );
+
+      // Send invites
+      for (final uid in selected) {
+        await ChatService.instance.sendGroupInvite(
+          groupId: gid,
+          receiverId: uid,
+        );
+      }
+
+      // Clear avatar after successful creation
+      avatarBytes = null;
+
+      return gid;
+    } finally {
+      isSubmitting.value = false;
+    }
+  }
+
+  // NEW: Method to create group and navigate immediately
+  Future<void> createGroupAndNavigate() async {
+    try {
+      final groupId = await submit();
+      if (groupId.isNotEmpty) {
+        // Show success message
+        Get.snackbar('Success', 'Group created successfully!');
+
+        // Navigate directly to chat screen
+        Get.offAll(() => ChatRoom());
+
+        // Clear selection and name
+        selected.clear();
+        name.value = '';
+      }
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to create group: $e');
+      rethrow;
+    }
+  }
+
 
   Future<void> acceptInvite(AppNotification notif) async {
     isAccepting.value = true;
@@ -328,7 +430,7 @@ class CreateGroupController extends GetxController {
         accepted: true,
       );
       showCommonSnackbarWidget('Invite Accepted', 'You have joined ${notif.groupName}');
-          if (gid != null) {
+      if (gid != null) {
         Get.to(() => ChatScreen(groupId: gid, groupName: notif.groupName));
       }
     } catch (e) {
@@ -357,33 +459,4 @@ class CreateGroupController extends GetxController {
     }
   }
 
-  // ---------------------- Submit (create group + invites) --------------------
-
-  Future<String> submit() async {
-    final n = name.value.trim();
-    if (n.isEmpty) throw 'Group name is required';
-    if (selected.isEmpty) throw 'Pick at least one member';
-
-    isSubmitting.value = true;
-    try {
-      final gid = await ChatService.instance.createGroupFlow(
-        name: n,
-        memberIds: selected.toList(),
-        avatarBytes: avatarBytes,
-        avatarFileExt: avatarExt,
-      );
-
-      // send invites (optional – if your flow requires acceptance)
-      for (final uid in selected) {
-        await ChatService.instance.sendGroupInvite(
-          groupId: gid,
-          receiverId: uid,
-        );
-      }
-
-      return gid;
-    } finally {
-      isSubmitting.value = false;
-    }
-  }
 }

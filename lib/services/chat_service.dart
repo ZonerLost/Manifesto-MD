@@ -38,7 +38,6 @@ class ChatService {
       final memberEmails = Map<String, String>.from(groupData['memberEmailsMap'] ?? {});
       final memberPhotos = Map<String, String>.from(groupData['memberPhotos'] ?? {});
 
-      // Fetch actual user data from users collection
       final members = <UserLite>[];
 
       for (final memberId in memberIds) {
@@ -47,10 +46,8 @@ class ChatService {
           UserLite userLite;
 
           if (userDoc.exists) {
-            // Create UserLite from user document (primary source)
             final userFromUserDoc = UserLite.fromUserDoc(userDoc);
 
-            // Create UserLite from group member data (fallback source)
             final userFromGroupData = UserLite.fromGroupMemberData(
               userId: memberId,
               memberNames: memberNames,
@@ -58,10 +55,8 @@ class ChatService {
               memberPhotos: memberPhotos,
             );
 
-            // Merge both sources - user document data takes priority
             userLite = UserLite.merge(userFromUserDoc, userFromGroupData);
           } else {
-            // Fallback to stored group data if user document doesn't exist
             userLite = UserLite.fromGroupMemberData(
               userId: memberId,
               memberNames: memberNames,
@@ -72,7 +67,6 @@ class ChatService {
 
           members.add(userLite);
         } catch (e) {
-          // Fallback in case of error - use group data only
           final fallbackUser = UserLite.fromGroupMemberData(
             userId: memberId,
             memberNames: memberNames,
@@ -87,14 +81,12 @@ class ChatService {
     });
   }
 
-// Method to update group member information with actual user data
   Future<void> updateGroupMemberInfo(String groupId, String userId) async {
     try {
       final userDoc = await _firestore.collection('users').doc(userId).get();
       if (userDoc.exists) {
         final userData = userDoc.data() as Map<String, dynamic>? ?? {};
 
-        // Use UserLite to get the best available name
         final userLite = UserLite.fromUserDoc(userDoc);
 
         await _firestore.collection('groups').doc(groupId).update({
@@ -108,7 +100,6 @@ class ChatService {
     }
   }
 
-// Method to update all group members with actual user data
   Future<void> updateAllGroupMembersInfo(String groupId) async {
     try {
       final groupDoc = await _firestore.collection('groups').doc(groupId).get();
@@ -125,7 +116,6 @@ class ChatService {
     }
   }
 
-// Enhanced method to get group members with real-time user data updates
   Stream<List<UserLite>> getGroupMembersWithRealtimeUpdates(String groupId) {
     return _firestore
         .collection('groups')
@@ -140,7 +130,6 @@ class ChatService {
       final memberEmails = Map<String, String>.from(groupData['memberEmailsMap'] ?? {});
       final memberPhotos = Map<String, String>.from(groupData['memberPhotos'] ?? {});
 
-      // Fetch all user documents in parallel for better performance
       final userFutures = memberIds.map((memberId) async {
         try {
           final userDoc = await _firestore.collection('users').doc(memberId).get();
@@ -178,7 +167,6 @@ class ChatService {
     });
   }
 
-// Method to get a single group member with real user data
   Future<UserLite?> getGroupMember(String groupId, String userId) async {
     try {
       // Get group data
@@ -217,7 +205,6 @@ class ChatService {
     }
   }
 
-// Method to refresh group member cache with latest user data
   Future<void> refreshGroupMembersCache(String groupId) async {
     try {
       final groupDoc = await _firestore.collection('groups').doc(groupId).get();
@@ -226,7 +213,6 @@ class ChatService {
 
       final memberIds = List<String>.from(groupData['memberIds'] ?? []);
 
-      // Batch update for better performance
       final batch = _firestore.batch();
       final groupRef = _firestore.collection('groups').doc(groupId);
 
@@ -250,45 +236,37 @@ class ChatService {
     }
   }
 
-  // ---------------------- Group creation ----------------------
 
   Future<String> createGroupFlow({
     required String name,
     required List<String> memberIds,
     Uint8List? avatarBytes,
     String avatarFileExt = 'jpg',
+    String? groupIconUrl,
+    Map<String, bool>? permissions,
+    List<Map<String, dynamic>>? membersData,
   }) async {
     final me = _auth.currentUser;
     if (me == null) throw 'Not logged in';
 
-    // 1. upload avatar if any
-    String? avatarUrl;
-    if (avatarBytes != null) {
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_avatar.$avatarFileExt';
-      final ref = _storage.ref().child('groups/avatars/$fileName');
-      await ref.putData(avatarBytes);
-      avatarUrl = await ref.getDownloadURL();
-    }
+    String? avatarUrl = groupIconUrl;
 
-    // 2. prepare member data
     final allMembers = {me.uid, ...memberIds};
     final memberNames = <String, String>{};
     final memberEmailsMap = <String, String>{};
     final memberPhotos = <String, String>{};
 
-    // fetch user details for all members
     final usersSnap = await _fs.collection('users')
         .where(FieldPath.documentId, whereIn: allMembers.toList())
         .get();
 
     for (final doc in usersSnap.docs) {
       final data = doc.data();
-      memberNames[doc.id] = data['displayName'] ?? 'User';
+      memberNames[doc.id] = data['name'] ?? data['displayName'] ?? 'User';
       memberEmailsMap[doc.id] = data['email'] ?? '';
-      memberPhotos[doc.id] = data['photoUrl'] ?? '';
+      memberPhotos[doc.id] = data['photoUrl'] ?? data['photoURL'] ?? data['imageUrl'] ?? '';
     }
 
-    // 3. create group doc
     final groupRef = _fs.collection('groups').doc();
     await groupRef.set({
       'id': groupRef.id,
@@ -303,9 +281,14 @@ class ChatService {
       'createdAt': FieldValue.serverTimestamp(),
       'lastMessageAt': FieldValue.serverTimestamp(),
       'lastMessage': 'Group created',
+      'permissions': permissions ?? {
+        'editGroupSettings': true,
+        'sendNewMessage': true,
+        'addOtherMembers': true,
+        'inviteViaLink': false,
+      },
     });
 
-    // 4. add members subcollection
     for (final uid in allMembers) {
       await groupRef.collection('members').doc(uid).set({
         'userId': uid,
@@ -317,7 +300,23 @@ class ChatService {
     return groupRef.id;
   }
 
-  // ---------------------- Invite members to existing group ----------------------
+  Stream<List<Group>> joinedGroupsStream() {
+    return _fs
+        .collection('groups')
+        .where('memberIds', arrayContains: myUid)
+        .snapshots()
+        .map((q) {
+      final allGroups = q.docs.map(Group.fromDoc).toList();
+      final joinedGroups = allGroups.where((g) => g.createdBy != myUid).toList();
+      joinedGroups.sort((a, b) {
+        final aTime = a.lastMessageAt?.millisecondsSinceEpoch ?? 0;
+        final bTime = b.lastMessageAt?.millisecondsSinceEpoch ?? 0;
+        return bTime.compareTo(aTime);
+      });
+      return joinedGroups;
+    });
+  }
+
 
   Future<void> inviteMembersToGroup({
     required String groupId,
@@ -328,7 +327,6 @@ class ChatService {
     final groupRef = _fs.collection('groups').doc(groupId);
     final batch = _fs.batch();
 
-    // Get group data first
     final groupDoc = await groupRef.get();
     if (!groupDoc.exists) throw 'Group not found';
 
@@ -338,7 +336,6 @@ class ChatService {
     final memberEmailsMap = Map<String, dynamic>.from(groupData['memberEmailsMap'] ?? {});
     final memberPhotos = Map<String, dynamic>.from(groupData['memberPhotos'] ?? {});
 
-    // Fetch new member details
     final newMembersSnap = await _fs.collection('users')
         .where(FieldPath.documentId, whereIn: newMemberIds)
         .get();
@@ -358,7 +355,6 @@ class ChatService {
       updatedMemberEmailsMap[uid] = data['email'] ?? '';
       updatedMemberPhotos[uid] = data['photoUrl'] ?? '';
 
-      // Add to members subcollection
       batch.set(
         groupRef.collection('members').doc(uid),
         {
@@ -369,7 +365,6 @@ class ChatService {
       );
     }
 
-    // Update group document
     batch.update(groupRef, {
       'memberIds': updatedMemberIds.toList(),
       'memberNames': updatedMemberNames,
@@ -380,7 +375,6 @@ class ChatService {
 
     await batch.commit();
 
-    // Send notifications to new members
     for (final uid in newMemberIds) {
       if (!existingMemberIds.contains(uid)) {
         await sendGroupInvite(groupId: groupId, receiverId: uid);
@@ -388,16 +382,14 @@ class ChatService {
     }
   }
 
-  // ---------------------- Streams ----------------------
 
   Stream<List<Group>> ownedGroupsStream() {
     return _fs
         .collection('groups')
         .where('ownerId', isEqualTo: myUid)
-        .snapshots() // Removed orderBy to avoid composite index
+        .snapshots()
         .map((q) {
       final groups = q.docs.map(Group.fromDoc).toList();
-      // Sort locally by last message time (most recent first)
       groups.sort((a, b) {
         final aTime = a.lastMessageAt?.millisecondsSinceEpoch ?? 0;
         final bTime = b.lastMessageAt?.millisecondsSinceEpoch ?? 0;
@@ -407,34 +399,14 @@ class ChatService {
     });
   }
 
-  Stream<List<Group>> joinedGroupsStream() {
-    return _fs
-        .collection('groups')
-        .where('memberIds', arrayContains: myUid)
-        .snapshots() // Removed orderBy and inequality filter to avoid composite index
-        .map((q) {
-      final allGroups = q.docs.map(Group.fromDoc).toList();
-      // Filter and sort locally
-      final joinedGroups = allGroups.where((g) => g.createdBy != myUid).toList();
-      // Sort by last message time (most recent first)
-      joinedGroups.sort((a, b) {
-        final aTime = a.lastMessageAt?.millisecondsSinceEpoch ?? 0;
-        final bTime = b.lastMessageAt?.millisecondsSinceEpoch ?? 0;
-        return bTime.compareTo(aTime);
-      });
-      return joinedGroups;
-    });
-  }
 
-  // NEW: Get all groups where user is a member (both owned and joined)
   Stream<List<Group>> allUserGroupsStream() {
     return _fs
         .collection('groups')
         .where('memberIds', arrayContains: myUid)
-        .snapshots() // No ordering in query to avoid composite index
+        .snapshots()
         .map((q) {
       final groups = q.docs.map(Group.fromDoc).toList();
-      // Sort locally by last message time (most recent first)
       groups.sort((a, b) {
         final aTime = a.lastMessageAt?.millisecondsSinceEpoch ?? 0;
         final bTime = b.lastMessageAt?.millisecondsSinceEpoch ?? 0;
@@ -454,7 +426,6 @@ class ChatService {
         .map((q) => q.docs.map(AppNotification.fromDoc).toList());
   }
 
-  // ---------------------- Invites ----------------------
 
   Future<void> sendGroupInvite({
     required String groupId,
@@ -486,22 +457,18 @@ class ChatService {
     required bool accepted,
   }) async {
     if (!accepted) {
-      // just delete the notification
       await _deleteInviteNotification(groupId);
       return null;
     }
 
-    // accept: add me to group members
     final groupRef = _fs.collection('groups').doc(groupId);
     final batch = _fs.batch();
 
-    // add to memberIds array
     batch.update(groupRef, {
       'memberIds': FieldValue.arrayUnion([myUid]),
       'memberCount': FieldValue.increment(1),
     });
 
-    // add me to members subcollection
     batch.set(
       groupRef.collection('members').doc(myUid),
       {
@@ -532,10 +499,8 @@ class ChatService {
     await batch.commit();
   }
 
-  // ---------------------- Group media (static for now) ----------------------
 
   Future<List<Map<String, dynamic>>> getGroupMedia(String groupId) async {
-    // Static implementation as requested
     return [
       {
         'type': 'image',

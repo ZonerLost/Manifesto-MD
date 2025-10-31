@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
@@ -16,11 +17,55 @@ class CreateNewGroup extends StatelessWidget {
   CreateNewGroup({super.key});
 
   final CreateGroupController createNewGroup = Get.find();
-
   final groupName = TextEditingController();
 
-
-
+  Future<void> _pickImage(BuildContext context) async {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () async {
+                  Get.back();
+                  final image = await ImagePicker().pickImage(
+                    source: ImageSource.gallery,
+                    imageQuality: 80,
+                    maxWidth: 512,
+                    maxHeight: 512,
+                  );
+                  if (image != null) {
+                    final bytes = await image.readAsBytes();
+                    createNewGroup.setGroupAvatar(bytes, 'jpg');
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Take Photo'),
+                onTap: () async {
+                  Get.back();
+                  final image = await ImagePicker().pickImage(
+                    source: ImageSource.camera,
+                    imageQuality: 80,
+                    maxWidth: 512,
+                    maxHeight: 512,
+                  );
+                  if (image != null) {
+                    final bytes = await image.readAsBytes();
+                    createNewGroup.setGroupAvatar(bytes, 'jpg');
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,37 +115,50 @@ class CreateNewGroup extends StatelessWidget {
           padding: AppSizes.DEFAULT,
           physics: BouncingScrollPhysics(),
           children: [
-            Row(
-              children: [
-                Stack(
-                  children: [
-                    Container(
-                      height: 80,
-                      width: 80,
-                      decoration: BoxDecoration(
-                        color: kBorderColor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: MyText(
-                          text: 'Group Icon',
-                          size: 10,
-                          weight: FontWeight.w600,
-                          color: kGreyColor,
-                        ),
-                      ),
+            // Group Icon Section - Fixed Obx usage
+            GestureDetector(
+              onTap: () => _pickImage(context),
+              child: Stack(
+                children: [
+                  Container(
+                    height: 80,
+                    width: 80,
+                    decoration: BoxDecoration(
+                      color: kBorderColor,
+                      shape: BoxShape.circle,
                     ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Image.asset(
-                        Assets.imagesChangeProfileImage,
-                        height: 30,
-                      ),
+                    child: GetBuilder<CreateGroupController>(
+                      builder: (controller) {
+                        return controller.avatarBytes != null
+                            ? ClipOval(
+                          child: Image.memory(
+                            controller.avatarBytes!,
+                            fit: BoxFit.cover,
+                            height: 80,
+                            width: 80,
+                          ),
+                        )
+                            : Center(
+                          child: MyText(
+                            text: 'Group Icon',
+                            size: 10,
+                            weight: FontWeight.w600,
+                            color: kGreyColor,
+                          ),
+                        );
+                      },
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Image.asset(
+                      Assets.imagesChangeProfileImage,
+                      height: 30,
+                    ),
+                  ),
+                ],
+              ),
             ),
             SizedBox(height: 40),
             MyTextField(
@@ -120,7 +178,8 @@ class CreateNewGroup extends StatelessWidget {
 }
 
 class _GroupPermissions extends StatelessWidget {
-  final List<String> _options = ['New Group', 'Settings'];
+  final CreateGroupController controller = Get.find();
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -143,33 +202,53 @@ class _GroupPermissions extends StatelessWidget {
             weight: FontWeight.w700,
             paddingBottom: 16,
           ),
-          CustomSwitchTile(
-            mBottom: 8,
-            title: 'Edit Group Settings',
-            icon: Assets.imagesEditGroupSettings,
-            onChanged: (v) {},
-            value: true,
+          GetBuilder<CreateGroupController>(
+            builder: (controller) => CustomSwitchTile(
+              mBottom: 8,
+              title: 'Edit Group Settings',
+              icon: Assets.imagesEditGroupSettings,
+              onChanged: (v) {
+                controller.permissions['editGroupSettings'] = v;
+                controller.update();
+              },
+              value: controller.permissions['editGroupSettings'] ?? true,
+            ),
           ),
-          CustomSwitchTile(
-            mBottom: 8,
-            value: true,
-            title: 'Send New Message',
-            icon: Assets.imagesPrivateMessages,
-            onChanged: (v) {},
+          GetBuilder<CreateGroupController>(
+            builder: (controller) => CustomSwitchTile(
+              mBottom: 8,
+              value: controller.permissions['sendNewMessage'] ?? true,
+              title: 'Send New Message',
+              icon: Assets.imagesPrivateMessages,
+              onChanged: (v) {
+                controller.permissions['sendNewMessage'] = v;
+                controller.update();
+              },
+            ),
           ),
-          CustomSwitchTile(
-            mBottom: 8,
-            title: 'Add Other Members',
-            icon: Assets.imagesAddOtherMember,
-            onChanged: (v) {},
-            value: true,
+          GetBuilder<CreateGroupController>(
+            builder: (controller) => CustomSwitchTile(
+              mBottom: 8,
+              title: 'Add Other Members',
+              icon: Assets.imagesAddOtherMember,
+              onChanged: (v) {
+                controller.permissions['addOtherMembers'] = v;
+                controller.update();
+              },
+              value: controller.permissions['addOtherMembers'] ?? true,
+            ),
           ),
-          CustomSwitchTile(
-            mBottom: 24,
-            value: false,
-            title: 'Invite VIA Group Link',
-            icon: Assets.imagesInviteViaLink,
-            onChanged: (v) {},
+          GetBuilder<CreateGroupController>(
+            builder: (controller) => CustomSwitchTile(
+              mBottom: 24,
+              value: controller.permissions['inviteViaLink'] ?? false,
+              title: 'Invite VIA Group Link',
+              icon: Assets.imagesInviteViaLink,
+              onChanged: (v) {
+                controller.permissions['inviteViaLink'] = v;
+                controller.update();
+              },
+            ),
           ),
           MyButton(
             buttonText: 'Done',

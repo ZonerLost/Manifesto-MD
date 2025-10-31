@@ -7,7 +7,14 @@ import 'package:manifesto_md/view/screens/chat_room/group_details.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
 
 class OptionsSheet extends StatelessWidget {
-  const OptionsSheet({super.key});
+  const OptionsSheet({
+    super.key,
+    required this.groupId,
+    this.groupName,
+  });
+
+  final String groupId;
+  final String? groupName;
 
   static const List<String> _options = [
     'Group Info',
@@ -33,7 +40,7 @@ class OptionsSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-           MyText(
+          MyText(
             text: 'Options',
             size: 18,
             weight: FontWeight.w700,
@@ -47,10 +54,13 @@ class OptionsSheet extends StatelessWidget {
                 GestureDetector(
                   onTap: () {
                     switch (i) {
-                      case 0:
-                        Get.to(() => const GroupDetails());
+                      case 0: // Group Info
+                        Get.back(); // close the bottom sheet first
+                        Get.to(() => GroupDetails(
+                          groupId: groupId,
+                          fallbackGroupName: groupName,
+                        ));
                         break;
-                    // TODO: wire other actions
                       default:
                         Get.back();
                     }

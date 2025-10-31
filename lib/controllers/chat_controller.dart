@@ -1,6 +1,7 @@
 // lib/controllers/chat_controller.dart
 import 'dart:async';
 import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -38,6 +39,10 @@ class ChatController extends GetxController {
   final RxList<String> typingUsers = <String>[].obs;
   Timer? _typingClearTimer;
 
+  // Upload progress (NEW)
+  final RxBool isUploading = false.obs;
+  final RxDouble uploadProgress = 0.0.obs;
+
   // Subscriptions
   StreamSubscription? _msgSub;
   StreamSubscription? _typingSub;
@@ -63,9 +68,8 @@ class ChatController extends GetxController {
     _loadGroupMembers();
     _listenToTyping();
 
-    // Listen to search query changes
     ever(searchQuery, (query) {
-      if (query.isEmpty) {
+      if ((query as String).isEmpty) {
         isSearching.value = false;
         filteredMessages.assignAll(messages);
       } else {
@@ -76,22 +80,20 @@ class ChatController extends GetxController {
   }
 
   void _loadMessages() {
-    // FIXED: Changed to ascending order to show latest messages at bottom (WhatsApp style)
+    // Ascending (oldest -> newest) so latest is at bottom
     _msgSub = _msgCol
-        .orderBy('sentAt', descending: false) // Ascending order - oldest first
+        .orderBy('sentAt', descending: false)
         .snapshots()
         .listen((q) async {
       final list = q.docs.map((d) => ChatMessage.fromDoc(d)).toList();
       messages.assignAll(list);
 
-      // Apply search filter if active
       if (searchQuery.value.isNotEmpty) {
         _filterMessages(searchQuery.value);
       } else {
         filteredMessages.assignAll(list);
       }
 
-      // mark unread as read for me
       await markAllVisibleAsRead();
     });
   }
@@ -106,9 +108,12 @@ class ChatController extends GetxController {
       if (groupData == null) return <UserLite>[];
 
       final memberIds = List<String>.from(groupData['memberIds'] ?? []);
-      final memberNames = Map<String, String>.from(groupData['memberNames'] ?? {});
-      final memberEmails = Map<String, String>.from(groupData['memberEmailsMap'] ?? {});
-      final memberPhotos = Map<String, String>.from(groupData['memberPhotos'] ?? {});
+      final memberNames =
+      Map<String, String>.from(groupData['memberNames'] ?? {});
+      final memberEmails =
+      Map<String, String>.from(groupData['memberEmailsMap'] ?? {});
+      final memberPhotos =
+      Map<String, String>.from(groupData['memberPhotos'] ?? {});
 
       final membersList = <UserLite>[];
       for (final memberId in memberIds) {
@@ -120,9 +125,7 @@ class ChatController extends GetxController {
         ));
       }
       return membersList;
-    }).listen((membersList) {
-      members.assignAll(membersList);
-    });
+    }).listen(members.assignAll);
   }
 
   void _listenToTyping() {
@@ -154,34 +157,27 @@ class ChatController extends GetxController {
     super.onClose();
   }
 
-  // ---- Search functionality -------------------------------------------------
-
+  // ---- Search ---------------------------------------------------------------
   void _filterMessages(String query) {
-    if (query.isEmpty) {
-      filteredMessages.assignAll(messages);
-      return;
-    }
-
-    final lowerQuery = query.toLowerCase();
-    final filtered = messages.where((message) {
-      return message.message.toLowerCase().contains(lowerQuery) ||
-          (message.userName ?? '').toLowerCase().contains(lowerQuery);
+    final lower = query.toLowerCase();
+    final filtered = messages.where((m) {
+      return m.message.toLowerCase().contains(lower) ||
+          (m.userName ?? '').toLowerCase().contains(lower);
     }).toList();
-
     filteredMessages.assignAll(filtered);
   }
 
-  void setSearchQuery(String query) {
-    searchQuery.value = query;
-  }
+  void setSearchQuery(String query) => searchQuery.value = query;
 
   void clearSearch() {
     searchQuery.value = '';
     isSearching.value = false;
+    filteredMessages.assignAll(messages);
   }
 
   // ---- typing ---------------------------------------------------------------
   void onTypingChanged(bool typing) {
+    if (userId.isEmpty) return;
     if (typing) {
       _typingCol.doc(userId).set({
         'isTyping': true,
@@ -198,8 +194,13 @@ class ChatController extends GetxController {
 
   void _stopTyping() {
     _typingClearTimer?.cancel();
-    _typingCol.doc(userId).delete();
+    if (userId.isEmpty) return;
+    _typingCol.doc(userId).delete().catchError((_) {});
   }
+
+  // ---- replies --------------------------------------------------------------
+  Map<String, dynamic>? _replyingTo;
+  void setReplyTo(Map<String, dynamic>? data) => _replyingTo = data;
 
   // ---- send text / attachments / media -------------------------------------
   Future<void> send(String senderDisplayName) async {
@@ -212,15 +213,12 @@ class ChatController extends GetxController {
         type: 'text',
         replyTo: _replyingTo,
       );
-      // Text field is cleared in the UI immediately after this method
+      // Input is cleared by UI after calling this method
     } finally {
       isSending.value = false;
       onTypingChanged(false);
     }
   }
-
-  Map<String, dynamic>? _replyingTo;
-  void setReplyTo(Map<String, dynamic>? data) => _replyingTo = data;
 
   Future<void> sendAttachmentBundle({
     required List<Map<String, dynamic>> atts,
@@ -238,7 +236,7 @@ class ChatController extends GetxController {
 
   Future<void> _sendMessage({
     required String message,
-    required String type,
+    required String type, // text | image | video | file | files
     String? mediaUrl,
     Map<String, dynamic>? replyTo,
     List<Map<String, dynamic>>? attachments,
@@ -248,7 +246,7 @@ class ChatController extends GetxController {
 
     final data = {
       'message': message,
-      'type': type, // text | image | video | file | files
+      'type': type,
       'mediaUrl': mediaUrl,
       'attachments': attachments,
       'replyTo': replyTo,
@@ -263,14 +261,13 @@ class ChatController extends GetxController {
 
     await _msgCol.add(data);
 
-    // bump group preview
     await _groupRef.set({
       'lastMessage': type == 'text' ? message : '[${type.toUpperCase()}]',
       'lastMessageAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
-  // camera/gallery
+  // ---- camera/gallery upload with PROGRESS ----------------------------------
   Future<String?> pickAndUploadMedia({
     required bool isVideo,
     required ImageSource source,
@@ -297,18 +294,39 @@ class ChatController extends GetxController {
 
     final fileName =
         '${DateTime.now().millisecondsSinceEpoch}_${p.basename(file.path)}';
-    final ref = _storage
-        .ref()
-        .child('groups/$groupId/media/$fileName');
+    final ref = _storage.ref().child('groups/$groupId/media/$fileName');
 
     final ext = p.extension(fileName).replaceFirst('.', '').toLowerCase();
     final contentType =
-        (isVideo ? 'video/' : 'image/') + (ext.isEmpty ? (isVideo ? 'mp4' : 'jpeg') : ext);
+        (isVideo ? 'video/' : 'image/') +
+            (ext.isEmpty ? (isVideo ? 'mp4' : 'jpeg') : ext);
 
-    await ref.putFile(file, SettableMetadata(contentType: contentType));
-    return ref.getDownloadURL();
+    isUploading.value = true;
+    uploadProgress.value = 0;
+
+    try {
+      final task = ref.putFile(
+        file,
+        SettableMetadata(contentType: contentType),
+      );
+
+      task.snapshotEvents.listen((s) {
+        if (s.totalBytes > 0) {
+          uploadProgress.value = s.bytesTransferred / s.totalBytes;
+        }
+      });
+
+      await task;
+      final url = await ref.getDownloadURL();
+      return url;
+    } finally {
+      await Future.delayed(const Duration(milliseconds: 200));
+      isUploading.value = false;
+      uploadProgress.value = 0;
+    }
   }
 
+  // ---- file picker + upload with PROGRESS -----------------------------------
   Future<List<PlatformFile>?> pickFiles() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
@@ -317,12 +335,12 @@ class ChatController extends GetxController {
         'pdf','doc','docx','xls','xlsx','ppt','pptx',
         'txt','zip','jpg','jpeg','png','gif','webp','heic','heif','mp4','mov','m4v','webm'
       ],
+      withData: false, // keep memory lower; we'll stream from file path
     );
     return result?.files;
   }
 
-  Future<String?> uploadFileAttachment(PlatformFile f,
-      {int maxMB = 50}) async {
+  Future<String?> uploadFileAttachment(PlatformFile f, {int maxMB = 50}) async {
     if (f.path == null) return null;
     final file = File(f.path!);
     final sizeMB = (await file.length()) / (1024 * 1024);
@@ -334,8 +352,28 @@ class ChatController extends GetxController {
     final ext = p.extension(fileName).toLowerCase();
     final contentType = _guessContentType(ext);
 
-    await ref.putFile(file, SettableMetadata(contentType: contentType));
-    return ref.getDownloadURL();
+    isUploading.value = true;
+    uploadProgress.value = 0;
+
+    try {
+      final task = ref.putFile(
+        file,
+        SettableMetadata(contentType: contentType),
+      );
+
+      task.snapshotEvents.listen((s) {
+        if (s.totalBytes > 0) {
+          uploadProgress.value = s.bytesTransferred / s.totalBytes;
+        }
+      });
+
+      await task;
+      return await ref.getDownloadURL();
+    } finally {
+      await Future.delayed(const Duration(milliseconds: 200));
+      isUploading.value = false;
+      uploadProgress.value = 0;
+    }
   }
 
   String _guessContentType(String ext) {
@@ -343,14 +381,17 @@ class ChatController extends GetxController {
       case '.pdf':
         return 'application/pdf';
       case '.doc':
-      case '.docx':
         return 'application/msword';
+      case '.docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
       case '.xls':
-      case '.xlsx':
         return 'application/vnd.ms-excel';
+      case '.xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
       case '.ppt':
-      case '.pptx':
         return 'application/vnd.ms-powerpoint';
+      case '.pptx':
+        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
       case '.zip':
         return 'application/zip';
       case '.txt':
@@ -383,6 +424,7 @@ class ChatController extends GetxController {
   // quick helpers to send image/video after upload
   Future<void> sendImage(String url) =>
       _sendMessage(message: '', type: 'image', mediaUrl: url, replyTo: _replyingTo);
+
   Future<void> sendVideo(String url) =>
       _sendMessage(message: '', type: 'video', mediaUrl: url, replyTo: _replyingTo);
 

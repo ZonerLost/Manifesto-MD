@@ -207,8 +207,7 @@ class _GroupRow implements _SectionItem {
     final lastMsg = (g.lastMessage ?? '').trim().isEmpty ? 'No messages yet' : g.lastMessage!;
     return GestureDetector(
       onTap: () {
-      
-        Get.to(() => ChatScreen(groupId: g.id, groupName: g.name,));
+        Get.to(() => ChatScreen(groupId: g.id, groupName: g.name));
       },
       child: ChatHeadTile(
         name: g.name,
@@ -216,9 +215,9 @@ class _GroupRow implements _SectionItem {
         message: lastMsg,
         unread: '',
         groupId: g.id,
-        groupName: g.name,               
-        imageUrl: g.avatarUrl ?? '',
-        seen: false,              
+        groupName: g.name,
+        imageUrl: g.avatarUrl ?? '', // Make sure this is passed to ChatHeadTile
+        seen: false,
       ),
     );
   }
@@ -226,7 +225,6 @@ class _GroupRow implements _SectionItem {
   String _formatTime(Timestamp? ts) {
     if (ts == null) return '';
     final dt = ts.toDate();
-    // Simple friendly formatter – swap for your app’s util if you have one
     final now = DateTime.now();
     final isToday = dt.year == now.year && dt.month == now.month && dt.day == now.day;
     if (isToday) {

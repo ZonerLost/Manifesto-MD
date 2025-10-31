@@ -1,18 +1,25 @@
 import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_fonts.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
+
 import 'package:manifesto_md/controllers/chat_controller.dart';
 import 'package:manifesto_md/controllers/profile_controller.dart';
+
 import 'package:manifesto_md/models/chat_message_model.dart';
+
+import 'package:manifesto_md/view/screens/chat_room/group_details.dart';
 import 'package:manifesto_md/view/screens/chat_room/support_screens/file_viewer_screen.dart';
 import 'package:manifesto_md/view/screens/chat_room/support_screens/image_viewer_screen.dart';
 import 'package:manifesto_md/view/screens/chat_room/support_screens/video_player_screen.dart';
+
 import 'package:manifesto_md/view/widget/common_image_view_widget.dart';
 import 'package:manifesto_md/view/widget/custom_container_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
@@ -32,6 +39,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
   final ScrollController _scrollController = ScrollController();
 
   late final ChatController c;
@@ -62,6 +70,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     _textController.dispose();
     _searchController.dispose();
+    _searchFocus.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -139,70 +148,111 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // -------------------- Search functionality --------------------
   void _toggleSearch() {
+    _searchController.text = c.searchQuery.value;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
+          left: 16,
+          right: 16,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+          top: 16,
         ),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search messages...',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () {
-                      _searchController.clear();
-                      c.clearSearch();
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onChanged: (value) {
-                  c.setSearchQuery(value);
-                },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: kBorderColor,
+                borderRadius: BorderRadius.circular(2),
               ),
-              const SizedBox(height: 16),
-              Obx(() {
-                if (c.isSearching.value && c.filteredMessages.isEmpty) {
-                  return const Text('No messages found');
-                }
-                return Expanded(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: c.filteredMessages.length,
-                    itemBuilder: (context, index) {
-                      final message = c.filteredMessages[index];
-                      return ListTile(
-                        title: Text(message.message),
-                        subtitle: Text('By: ${message.userName}'),
-                        trailing: Text(_fmtTime(message.sentAt?.toDate())),
-                        onTap: () {
-                          Navigator.pop(ctx);
+            ),
+            TextField(
+              controller: _searchController,
+              focusNode: _searchFocus,
+              autofocus: true, // pops keyboard and places field above it
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Search messages or names…',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_searchController.text.isNotEmpty)
+                      IconButton(
+                        tooltip: 'Clear',
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          _searchController.clear();
+                          c.clearSearch();
+                          setState(() {});
                         },
-                      );
-                    },
-                  ),
+                      ),
+                    IconButton(
+                      tooltip: 'Done',
+                      icon: const Icon(Icons.keyboard_hide_outlined),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onChanged: (value) {
+                c.setSearchQuery(value);
+                setState(() {});
+              },
+              onSubmitted: (_) => Navigator.pop(ctx),
+            ),
+            const SizedBox(height: 12),
+            Obx(() {
+              final results = c.filteredMessages;
+              if (c.isSearching.value && results.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: const Text('No messages found'),
                 );
-              }),
-            ],
-          ),
+              }
+              return SizedBox(
+                height: min(320, MediaQuery.of(ctx).size.height * 0.45),
+                child: ListView.builder(
+                  itemCount: results.length,
+                  itemBuilder: (context, index) {
+                    final message = results[index];
+                    return ListTile(
+                      dense: true,
+                      title: Text(
+                        message.message.isEmpty ? '[${message.type}]' : message.message,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text('By: ${message.userName ?? 'User'}'),
+                      trailing: Text(_fmtTime(message.sentAt?.toDate())),
+                      onTap: () {
+                        // Keep search mode active so list shows filtered results
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  },
+                ),
+              );
+            }),
+          ],
         ),
       ),
-    );
+    ).whenComplete(() {
+      _searchFocus.unfocus();
+    });
   }
 
   // -------------------- media pickers --------------------
@@ -223,6 +273,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 Navigator.pop(ctx);
                 final type = await showModalBottomSheet<String>(
                   context: context,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                  ),
                   builder: (ctx2) => SafeArea(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -244,7 +297,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 if (type == null) return;
                 final isVideo = type == 'video';
                 final url = await c.pickAndUploadMedia(
-                    isVideo: isVideo, source: ImageSource.camera);
+                  isVideo: isVideo, source: ImageSource.camera,
+                );
                 if (url != null) {
                   if (isVideo) {
                     await c.sendVideo(url);
@@ -262,6 +316,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 Navigator.pop(ctx);
                 final type = await showModalBottomSheet<String>(
                   context: context,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                  ),
                   builder: (ctx2) => SafeArea(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -283,7 +340,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 if (type == null) return;
                 final isVideo = type == 'video';
                 final url = await c.pickAndUploadMedia(
-                    isVideo: isVideo, source: ImageSource.gallery);
+                  isVideo: isVideo, source: ImageSource.gallery,
+                );
                 if (url != null) {
                   if (isVideo) {
                     await c.sendVideo(url);
@@ -301,6 +359,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 Navigator.pop(ctx);
                 final files = await c.pickFiles();
                 if (files == null || files.isEmpty) return;
+
                 for (final f in files) {
                   final url = await c.uploadFileAttachment(f);
                   if (url != null) {
@@ -385,9 +444,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         if (m.type == 'image' && m.mediaUrl != null)
           GestureDetector(
-            onTap: () {
-              Get.to(() => ImageViewerScreen(url: m.mediaUrl!));
-            },
+            onTap: () => Get.to(() => ImageViewerScreen(url: m.mediaUrl!)),
             child: Container(
               margin: const EdgeInsets.only(top: 4),
               child: ClipRRect(
@@ -403,9 +460,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         if (m.type == 'video' && m.mediaUrl != null)
           GestureDetector(
-            onTap: () {
-              Get.to(() => VideoPlayerScreen(url: m.mediaUrl!));
-            },
+            onTap: () => Get.to(() => VideoPlayerScreen(url: m.mediaUrl!)),
             child: Container(
               margin: const EdgeInsets.only(top: 4),
               child: Stack(
@@ -440,13 +495,9 @@ class _ChatScreenState extends State<ChatScreen> {
             final size = att['size'] ?? 0;
             final ext = att['ext'] ?? '';
             return GestureDetector(
-              onTap: () {
-                Get.to(() => FileViewerScreen(
-                  fileName: name,
-                  url: url,
-                  ext: ext,
-                ));
-              },
+              onTap: () => Get.to(() => FileViewerScreen(
+                fileName: name, url: url, ext: ext,
+              )),
               child: Container(
                 margin: const EdgeInsets.only(top: 4),
                 padding: const EdgeInsets.all(8),
@@ -495,16 +546,11 @@ class _ChatScreenState extends State<ChatScreen> {
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isReactedByMe
-                      ? kPrimaryColor
-                      : Colors.grey.withOpacity(0.2),
+                  color: isReactedByMe ? kPrimaryColor : Colors.grey.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: kBorderColor),
                 ),
-                child: Text(
-                  '$emoji ${users.length}',
-                  style: const TextStyle(fontSize: 12),
-                ),
+                child: Text('$emoji ${users.length}', style: const TextStyle(fontSize: 12)),
               );
             }).toList(),
           ),
@@ -517,10 +563,7 @@ class _ChatScreenState extends State<ChatScreen> {
       children: [
         Text(
           _fmtTime(m.sentAt?.toDate()),
-          style: TextStyle(
-            fontSize: 10,
-            color: kGreyColor,
-          ),
+          style: TextStyle(fontSize: 10, color: kGreyColor),
         ),
         if (isMe) ...[
           const SizedBox(width: 4),
@@ -544,7 +587,6 @@ class _ChatScreenState extends State<ChatScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             if (!isMe) ...[
-              // WhatsApp-style sender avatar for others' messages
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: CommonImageView(
@@ -561,7 +603,6 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Column(
                 crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 children: [
-                  // Show username for others' messages (WhatsApp style)
                   if (!isMe)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 4, left: 8),
@@ -597,7 +638,6 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
             if (isMe) ...[
-              // My avatar on the right side
               const SizedBox(width: 8),
               CommonImageView(
                 height: 32,
@@ -669,15 +709,15 @@ class _ChatScreenState extends State<ChatScreen> {
           padding: const EdgeInsets.all(16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: emojis.map((e) {
-              return GestureDetector(
-                onTap: () {
-                  Navigator.pop(ctx);
-                  c.addReaction(m.id, e);
-                },
-                child: Text(e, style: const TextStyle(fontSize: 30)),
-              );
-            }).toList(),
+            children: emojis
+                .map((e) => GestureDetector(
+              onTap: () {
+                Navigator.pop(ctx);
+                c.addReaction(m.id, e);
+              },
+              child: Text(e, style: const TextStyle(fontSize: 30)),
+            ))
+                .toList(),
           ),
         ),
       ),
@@ -694,7 +734,8 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             const SizedBox(width: 8),
             MyText(
-              text: '${c.typingUsers.join(', ')} ${c.typingUsers.length == 1 ? 'is' : 'are'} typing...',
+              text:
+              '${c.typingUsers.join(', ')} ${c.typingUsers.length == 1 ? 'is' : 'are'} typing...',
               size: 12,
               color: kGreyColor,
             ),
@@ -712,7 +753,7 @@ class _ChatScreenState extends State<ChatScreen> {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: kPrimaryColor,
-        border: Border(top: BorderSide(color: kBorderColor)),
+        border:  Border(top: BorderSide(color: kBorderColor)),
       ),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
@@ -774,7 +815,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_replyingTo == null) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
+      decoration:  BoxDecoration(
         color: kPrimaryColor,
         border: Border(top: BorderSide(color: kBorderColor)),
       ),
@@ -800,9 +841,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           GestureDetector(
-            onTap: () {
-              setState(() => _replyingTo = null);
-            },
+            onTap: () => setState(() => _replyingTo = null),
             child: const Icon(Icons.close, size: 18, color: kGreyColor),
           ),
         ],
@@ -828,73 +867,100 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ],
           ),
-          title: Row(
-            children: [
-              // Group avatar
-              Container(
-                height: 38,
-                width: 38,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: kBorderColor,
-                ),
-                child: Center(
-                  child: MyText(
-                    text: widget.groupName != null && widget.groupName!.isNotEmpty
-                        ? widget.groupName!
-                        .trim()
-                        .split(' ')
-                        .map((e) => e.isNotEmpty ? e[0] : '')
-                        .take(2)
-                        .join()
-                        .toUpperCase()
-                        : 'G',
-                    size: 16,
-                    weight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    MyText(
-                      text: widget.groupName ?? "Group",
-                      size: 14,
-                      color: kTertiaryColor,
-                      weight: FontWeight.w600,
+          title: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('groups')
+                .doc(widget.groupId)
+                .snapshots(),
+            builder: (context, snap) {
+              final data = snap.data?.data();
+              final name = (data?['name'] as String?)?.trim();
+              final avatarUrl = (data?['avatarUrl'] as String?)?.trim();
+
+              String initialsFrom(String? n) {
+                final s = (n ?? '').trim();
+                if (s.isEmpty) return 'G';
+                final parts = s.split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+                return parts.take(2).map((e) => e[0]).join().toUpperCase();
+              }
+
+              final titleRow = Row(
+                children: [
+                  // Avatar (image if avatarUrl exists, else initials)
+                  Container(
+                    height: 38,
+                    width: 38,
+                    decoration:  BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: kBorderColor,
                     ),
-                    Obx(() {
-                      final members = c.members;
-                      if (members.isEmpty) {
-                        return MyText(
-                          text: 'No members',
-                          size: 10,
-                          color: kGreyColor,
-                        );
-                      }
+                    clipBehavior: Clip.antiAlias,
+                    child: (avatarUrl != null && avatarUrl.isNotEmpty)
+                        ? CommonImageView(
+                      url: avatarUrl,
+                      height: 38,
+                      width: 38,
+                      radius: 19,
+                      fit: BoxFit.cover,
+                      isAvatar: true,
+                    )
+                        : Center(
+                      child: MyText(
+                        text: initialsFrom(name ?? widget.groupName),
+                        size: 16,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        MyText(
+                          text: name?.isNotEmpty == true
+                              ? name!
+                              : (widget.groupName ?? "Group"),
+                          size: 14,
+                          color: kTertiaryColor,
+                          weight: FontWeight.w600,
+                        ),
+                        Obx(() {
+                          final members = c.members;
+                          if (c.typingUsers.isNotEmpty) {
+                            return MyText(
+                              text:
+                              '${c.typingUsers.join(', ')} ${c.typingUsers.length == 1 ? 'is' : 'are'} typing...',
+                              size: 10,
+                              color: kGreyColor,
+                            );
+                          }
+                          return MyText(
+                            text: members.isEmpty
+                                ? 'No members'
+                                : '${members.length} members',
+                            size: 10,
+                            color: kGreyColor,
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ],
+              );
 
-                      // Show typing indicator if someone is typing
-                      if (c.typingUsers.isNotEmpty) {
-                        return MyText(
-                          text: '${c.typingUsers.join(', ')} ${c.typingUsers.length == 1 ? 'is' : 'are'} typing...',
-                          size: 10,
-                          color: kGreyColor,
-                        );
-                      }
-
-                      // Show member count
-                      return MyText(
-                        text: '${members.length} members',
-                        size: 10,
-                        color: kGreyColor,
-                      );
-                    }),
-                  ],
-                ),
-              ),
-            ],
+              // Make entire title tappable -> Group Details
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  Get.to(() => GroupDetails(
+                    groupId: widget.groupId,
+                    fallbackGroupName: widget.groupName,
+                  ));
+                },
+                child: titleRow,
+              );
+            },
           ),
           actions: [
             Center(
@@ -906,17 +972,55 @@ class _ChatScreenState extends State<ChatScreen> {
             const SizedBox(width: 10),
             Center(
               child: GestureDetector(
-                onTap: () => Get.bottomSheet(const OptionsSheet(), isScrollControlled: true),
-                child: Image.asset(Assets.imagesMore, height: 24),
+                onTap: () => Get.bottomSheet(
+                  OptionsSheet(
+                    groupId: widget.groupId,
+                    groupName: widget.groupName, // optional
+                  ),
+                  isScrollControlled: true,
+                ),
+
+                  child: Image.asset(Assets.imagesMore, height: 24),
               ),
             ),
             const SizedBox(width: 20),
           ],
-          shape: Border(bottom: BorderSide(width: 1.0, color: kBorderColor)),
+          shape:  Border(
+            bottom: BorderSide(width: 1.0, color: kBorderColor),
+          ),
         ),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Upload progress bar (global)
+            Obx(() {
+              if (!c.isUploading.value) return const SizedBox.shrink();
+              final v = c.uploadProgress.value;
+              return Column(
+                children: [
+                  LinearProgressIndicator(
+                    value: (v > 0.0 && v < 1.0) ? v : null,
+                    minHeight: 3,
+                    backgroundColor: kBorderColor,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.cloud_upload_outlined, size: 14, color: kGreyColor),
+                        const SizedBox(width: 6),
+                        MyText(
+                          text: 'Uploading… ${((v.clamp(0.0, 1.0)) * 100).toStringAsFixed(0)}%',
+                          size: 11,
+                          color: kGreyColor,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }),
+
             Expanded(
               child: Obx(() {
                 final items = c.isSearching.value ? c.filteredMessages : c.messages;
@@ -937,14 +1041,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 final grouped = _groupByDay(items);
                 final dayKeys = grouped.keys.toList();
 
-                // FIXED: Show messages in natural order (latest at bottom) - WhatsApp style
+                // Latest at bottom (ascending)
                 return ListView.builder(
                   controller: _scrollController,
                   padding: AppSizes.DEFAULT,
                   physics: const BouncingScrollPhysics(),
                   itemCount: dayKeys.length,
                   itemBuilder: (_, dateIdx) {
-                    final dayKey = dayKeys[dateIdx]; // Use normal order
+                    final dayKey = dayKeys[dateIdx];
                     final chatList = grouped[dayKey]!;
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -963,7 +1067,6 @@ class _ChatScreenState extends State<ChatScreen> {
                             ),
                           ),
                         ),
-                        // Messages for this day in chronological order
                         ...chatList.map(_buildMessage).toList(),
                       ],
                     );
@@ -976,120 +1079,10 @@ class _ChatScreenState extends State<ChatScreen> {
             _buildTypingIndicator(),
 
             // pending attachments tray
-            if (_pendingAttachments.isNotEmpty) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: kPrimaryColor,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        MyText(text: 'Attachments', size: 12, color: kGreyColor, weight: FontWeight.w600),
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: () async {
-                            final ready = _pendingAttachments.any((a) => a['url'] != null);
-                            if (!ready) return;
-                            final bundle = _pendingAttachments
-                                .where((a) => a['url'] != null)
-                                .map((a) => {
-                              'name': a['name'],
-                              'url': a['url'],
-                              'size': a['size'],
-                              'type': a['ext'],
-                            })
-                                .toList();
-                            await c.sendAttachmentBundle(
-                              atts: bundle,
-                              text: _textController.text,
-                            );
-                            setState(() {
-                              _pendingAttachments.clear();
-                              _textController.clear(); // Clear text field
-                            });
-                          },
-                          child: MyText(
-                            text: 'Send',
-                            size: 12,
-                            color: kSecondaryColor,
-                            weight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    ..._pendingAttachments.asMap().entries.map((e) {
-                      final i = e.key;
-                      final a = e.value;
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: kPrimaryColor,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: kBorderColor),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(_fileIcon(a['ext']), color: kSecondaryColor, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  MyText(
-                                    text: a['name'],
-                                    size: 12,
-                                    color: kTertiaryColor,
-                                    weight: FontWeight.w500,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  MyText(
-                                    text: _fmtSize((a['size'] ?? 0) as int),
-                                    size: 10,
-                                    color: kGreyColor,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () => setState(() => _pendingAttachments.removeAt(i)),
-                              child: const Icon(Icons.close, size: 16, color: kGreyColor),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ),
-            ],
+            if (_pendingAttachments.isNotEmpty) _buildAttachmentsTray(),
 
             // reply banner
-            if (_replyingTo != null) ...[
-              Container(
-                color: kPrimaryColor,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: MyText(
-                        text: 'Replying to ${_replyingTo!['userName']}: ${_replyingTo!['message']}',
-                        size: 12,
-                        color: kGreyColor,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        setState(() => _replyingTo = null);
-                      },
-                      child: const Icon(Icons.close, size: 18, color: kGreyColor),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            if (_replyingTo != null) _buildReplyPreview(),
 
             // input row
             Padding(
@@ -1123,8 +1116,12 @@ class _ChatScreenState extends State<ChatScreen> {
                           onChanged: (v) => c.onTypingChanged(v.trim().isNotEmpty),
                           onFieldSubmitted: (_) async {
                             if (_textController.text.trim().isNotEmpty) {
+                              // pass reply context to controller (then clear local)
+                              c.setReplyTo(_replyingTo);
                               await c.send(profileController.profile.value?.name ?? '');
-                              _textController.clear(); // Clear immediately after send
+                              setState(() => _replyingTo = null);
+                              _textController.clear();
+                              _scrollToBottom();
                             }
                           },
                           decoration: InputDecoration(
@@ -1142,7 +1139,8 @@ class _ChatScreenState extends State<ChatScreen> {
                               fontWeight: FontWeight.w500,
                             ),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 0),
+                            contentPadding:
+                            const EdgeInsets.symmetric(vertical: 12, horizontal: 0),
                           ),
                           style: TextStyle(
                             color: kTertiaryColor,
@@ -1158,14 +1156,19 @@ class _ChatScreenState extends State<ChatScreen> {
                   GestureDetector(
                     onTap: () async {
                       if (_textController.text.trim().isNotEmpty) {
+                        c.setReplyTo(_replyingTo);
                         await c.send(profileController.profile.value?.name ?? '');
-                        _textController.clear(); // Clear immediately after send
+                        setState(() => _replyingTo = null);
+                        _textController.clear();
+                        _scrollToBottom();
                       }
                     },
-                    child: Obx(() => Opacity(
-                      opacity: c.isSending.value ? 0.6 : 1,
-                      child: Image.asset(Assets.imagesSend, height: 34),
-                    )),
+                    child: Obx(
+                          () => Opacity(
+                        opacity: c.isSending.value ? 0.6 : 1,
+                        child: Image.asset(Assets.imagesSend, height: 34),
+                      ),
+                    ),
                   ),
                 ],
               ),
