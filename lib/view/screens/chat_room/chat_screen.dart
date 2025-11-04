@@ -23,7 +23,10 @@ import 'package:manifesto_md/view/screens/chat_room/support_screens/video_player
 import 'package:manifesto_md/view/widget/common_image_view_widget.dart';
 import 'package:manifesto_md/view/widget/custom_container_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
-import 'package:manifesto_md/view/widget/options_sheet.dart';
+// OLD: removed bottom sheet options import
+// import 'package:manifesto_md/view/widget/options_sheet.dart';
+
+enum _OverflowAction { report, exitGroup }
 
 class ChatScreen extends StatefulWidget {
   final String groupId;
@@ -179,7 +182,7 @@ class _ChatScreenState extends State<ChatScreen> {
             TextField(
               controller: _searchController,
               focusNode: _searchFocus,
-              autofocus: true, // pops keyboard and places field above it
+              autofocus: true,
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 hintText: 'Search messages or names…',
@@ -218,9 +221,9 @@ class _ChatScreenState extends State<ChatScreen> {
             Obx(() {
               final results = c.filteredMessages;
               if (c.isSearching.value && results.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: const Text('No messages found'),
+                return const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text('No messages found'),
                 );
               }
               return SizedBox(
@@ -239,7 +242,6 @@ class _ChatScreenState extends State<ChatScreen> {
                       subtitle: Text('By: ${message.userName ?? 'User'}'),
                       trailing: Text(_fmtTime(message.sentAt?.toDate())),
                       onTap: () {
-                        // Keep search mode active so list shows filtered results
                         Navigator.pop(ctx);
                       },
                     );
@@ -563,7 +565,7 @@ class _ChatScreenState extends State<ChatScreen> {
       children: [
         Text(
           _fmtTime(m.sentAt?.toDate()),
-          style: TextStyle(fontSize: 10, color: kGreyColor),
+          style: const TextStyle(fontSize: 10, color: kGreyColor),
         ),
         if (isMe) ...[
           const SizedBox(width: 4),
@@ -815,9 +817,9 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_replyingTo == null) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.all(8),
-      decoration:  BoxDecoration(
+      decoration: BoxDecoration(
         color: kPrimaryColor,
-        border: Border(top: BorderSide(color: kBorderColor)),
+        border:  Border(top: BorderSide(color: kBorderColor)),
       ),
       child: Row(
         children: [
@@ -847,6 +849,88 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
+  }
+
+  // -------------------- Report / Exit handlers --------------------
+  Future<void> _handleReport() async {
+    final reasonCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Report group'),
+        content: TextField(
+          controller: reasonCtrl,
+          decoration: const InputDecoration(
+            hintText: 'What is the issue?',
+          ),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Submit')),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    final reason = reasonCtrl.text.trim();
+    if (reason.isEmpty) {
+      Get.snackbar('Report', 'Please provide a brief reason.');
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance.collection('reports').add({
+        'type': 'group',
+        'groupId': widget.groupId,
+        'groupName': widget.groupName,
+        'reason': reason,
+        'reporterId': c.userId,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      Get.snackbar('Reported', 'Thanks, we\'ll review this group.');
+    } catch (e) {
+      Get.snackbar('Error', 'Could not submit report: $e');
+    }
+  }
+
+  Future<void> _handleExitGroup() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Exit group'),
+        content: const Text('Are you sure you want to leave this group?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Exit')),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final uid = c.userId;
+      final fs = FirebaseFirestore.instance;
+      final groupRef = fs.collection('groups').doc(widget.groupId);
+
+      // Remove from members subcollection & memberIds array; decrement memberCount
+      final memberDoc = groupRef.collection('members').doc(uid);
+
+      await fs.runTransaction((txn) async {
+        txn.delete(memberDoc);
+        txn.update(groupRef, {
+          'memberIds': FieldValue.arrayRemove([uid]),
+          'memberCount': FieldValue.increment(-1),
+        });
+      });
+
+      Get.back(); // pop ChatScreen
+      Get.snackbar('Left group', 'You have exited the group.');
+    } catch (e) {
+      Get.snackbar('Error', 'Could not leave group: $e');
+    }
   }
 
   // -------------------- build --------------------
@@ -970,18 +1054,38 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
             const SizedBox(width: 10),
-            Center(
-              child: GestureDetector(
-                onTap: () => Get.bottomSheet(
-                  OptionsSheet(
-                    groupId: widget.groupId,
-                    groupName: widget.groupName, // optional
+            // NEW: default overflow menu (Report, Exit Group) instead of bottom sheet
+            PopupMenuButton<_OverflowAction>(
+              tooltip: 'More',
+              onSelected: (action) async {
+                switch (action) {
+                  case _OverflowAction.report:
+                    await _handleReport();
+                    break;
+                  case _OverflowAction.exitGroup:
+                    await _handleExitGroup();
+                    break;
+                }
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(
+                  value: _OverflowAction.report,
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.flag_outlined),
+                    title: Text('Report'),
                   ),
-                  isScrollControlled: true,
                 ),
-
-                  child: Image.asset(Assets.imagesMore, height: 24),
-              ),
+                const PopupMenuItem(
+                  value: _OverflowAction.exitGroup,
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.logout, color: Colors.red),
+                    title: Text('Exit Group', style: TextStyle(color: Colors.red)),
+                  ),
+                ),
+              ],
+              icon: const Icon(Icons.more_vert, color: kTertiaryColor),
             ),
             const SizedBox(width: 20),
           ],

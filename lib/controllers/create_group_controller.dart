@@ -13,17 +13,28 @@ import 'package:manifesto_md/view/widget/show_common_snackbar_widget.dart';
 import '../services/chat_service.dart';
 
 class CreateGroupController extends GetxController {
-  // Inputs
+  // Inputs (for create group)
   final name = ''.obs;
+
+  // Search for "add members" screen (users list pagination)
   final query = ''.obs;
+
+  // NEW: Search for Chat Room groups list
+  final groupSearchQuery = ''.obs;
 
   // UI state
   final isSubmitting = false.obs;
   final isLoadingPage = false.obs;
 
   final hasMore = true.obs;
+
+  /// Raw groups from streams
   final ownedGroups = <Group>[].obs;
   final joinedGroups = <Group>[].obs;
+
+  /// NEW: Derived (search-filtered) lists for UI rendering
+  final filteredOwned = <Group>[].obs;
+  final filteredJoined = <Group>[].obs;
 
   // selection (single source of truth)
   final selected = <String>{}.obs;
@@ -65,10 +76,22 @@ class CreateGroupController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+
+    // Users pagination for "add members" screen
     _loadFirstPage();
     ever<String>(query, (_) => _loadFirstPage());
+
+    // Groups + notifications streams
     _bindNotifications();
     _bindGroups();
+
+    // Recompute group search filters whenever sources or search query change
+    ever<List<Group>>(ownedGroups, (_) => _recomputeGroupFilters());
+    ever<List<Group>>(joinedGroups, (_) => _recomputeGroupFilters());
+    ever<String>(groupSearchQuery, (_) => _recomputeGroupFilters());
+
+    // Initial compute (in case lists are already populated)
+    _recomputeGroupFilters();
   }
 
   @override
@@ -79,28 +102,28 @@ class CreateGroupController extends GetxController {
     super.onClose();
   }
 
-  // Set group avatar
+  // ---------------------- Group avatar ----------------------
+
   void setGroupAvatar(Uint8List bytes, String extension) {
     avatarBytes = bytes;
     avatarExt = extension;
     update();
   }
 
-  // Upload group icon to Firebase Storage
   Future<String?> _uploadGroupIcon() async {
     if (avatarBytes == null) return null;
 
     try {
       final storage = FirebaseStorage.instance;
-      final fileName = 'group_icons/${DateTime.now().millisecondsSinceEpoch}.$avatarExt';
+      final fileName =
+          'group_icons/${DateTime.now().millisecondsSinceEpoch}.$avatarExt';
       final ref = storage.ref().child(fileName);
 
-      final uploadTask = ref.putData(avatarBytes!);
-      final snapshot = await uploadTask;
+      final snapshot = await ref.putData(avatarBytes!);
       final downloadUrl = await snapshot.ref.getDownloadURL();
-
       return downloadUrl;
     } catch (e) {
+      // ignore: avoid_print
       print('Error uploading group icon: $e');
       return null;
     }
@@ -125,15 +148,17 @@ class CreateGroupController extends GetxController {
           _gotOwned = true;
           _maybeHideInitialLoader();
         }
+        // ignore: avoid_print
         print('ownedGroups stream error: $e');
       },
     );
 
     _joinedSub = ChatService.instance.joinedGroupsStream().listen(
           (list) {
-        // FIXED: Filter out owned groups from joined groups
-        final filteredJoined = list.where((group) => group.createdBy != myUid).toList();
-        joinedGroups.assignAll(filteredJoined);
+        // FIXED: Exclude groups the user owns from "joined"
+        final joinedWithoutOwned =
+        list.where((g) => (g.createdBy ?? '') != myUid).toList();
+        joinedGroups.assignAll(joinedWithoutOwned);
         if (!_gotJoined) {
           _gotJoined = true;
           _maybeHideInitialLoader();
@@ -144,30 +169,38 @@ class CreateGroupController extends GetxController {
           _gotJoined = true;
           _maybeHideInitialLoader();
         }
+        // ignore: avoid_print
         print('joinedGroups stream error: $e');
       },
     );
   }
 
-  Future<void> inviteSelectedToExistingGroup(String groupId) async {
-    if (selected.isEmpty) {
-      throw 'Pick at least one member';
-    }
-    isSubmitting.value = true;
-    try {
-      await ChatService.instance.inviteMembersToGroup(
-        groupId: groupId,
-        newMemberIds: selected.toList(),
-      );
+  // ---------------------- Group search helpers ----------------------
 
-      selected.clear();
-      showCommonSnackbarWidget('Success', 'Invites sent successfully');
-    } catch (e) {
-      showCommonSnackbarWidget('Error', 'Failed to send invites: $e');
-      rethrow;
-    } finally {
-      isSubmitting.value = false;
-    }
+  /// Call this from the Chat Room search bar
+  void setGroupSearch(String q) {
+    groupSearchQuery.value = q.trim();
+  }
+
+  /// Optional: wire to a clear button
+  void clearGroupSearch() {
+    groupSearchQuery.value = '';
+  }
+
+  bool _matchGroup(Group g, String q) {
+    if (q.isEmpty) return true;
+    final needle = q.toLowerCase();
+
+    final name = (g.name ?? '').toLowerCase();
+    final lastMsg = (g.lastMessage ?? '').toLowerCase();
+
+    return name.contains(needle) || lastMsg.contains(needle);
+  }
+
+  void _recomputeGroupFilters() {
+    final q = groupSearchQuery.value;
+    filteredOwned.assignAll(ownedGroups.where((g) => _matchGroup(g, q)));
+    filteredJoined.assignAll(joinedGroups.where((g) => _matchGroup(g, q)));
   }
 
   // ---------------------- Notifications stream ----------------------
@@ -190,6 +223,7 @@ class CreateGroupController extends GetxController {
             _gotNotifs = true;
             _maybeHideInitialLoader();
           }
+          // ignore: avoid_print
           print('Notification stream error: $err');
         },
       );
@@ -199,6 +233,7 @@ class CreateGroupController extends GetxController {
         _gotNotifs = true;
         _maybeHideInitialLoader();
       }
+      // ignore: avoid_print
       print('Failed to bind notifications: $e');
     }
   }
@@ -209,7 +244,7 @@ class CreateGroupController extends GetxController {
     }
   }
 
-  // ---------------------- Pagination / Users ----------------------
+  // ---------------------- Pagination / Users (add members) ----------------------
 
   Future<void> _loadFirstPage() async {
     users.clear();
@@ -295,7 +330,7 @@ class CreateGroupController extends GetxController {
     }
   }
 
-  // ---------------------- Selection helpers ---------
+  // ---------------------- Selection helpers ----------------------
 
   void toggleUser(Map<String, dynamic> user) {
     final uid = user['id'] as String;
@@ -324,7 +359,7 @@ class CreateGroupController extends GetxController {
 
   void clearSelection() => selected.clear();
 
-  // ---------------------- Submit (create group + invites) --------------------
+  // ---------------------- Submit (create group + invites) ----------------------
 
   Future<String> submit() async {
     final n = name.value.trim();
@@ -336,20 +371,23 @@ class CreateGroupController extends GetxController {
       // Upload group icon if exists
       final String? groupIconUrl = await _uploadGroupIcon();
 
-      // FIXED: Get proper user data with correct field names
+      // Build members data
       final membersData = <Map<String, dynamic>>[];
       for (final uid in selected) {
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .get();
+        final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
         if (userDoc.exists) {
           final userData = userDoc.data()!;
           membersData.add({
             'uid': uid,
             'email': userData['email'] ?? '',
-            'displayName': userData['name'] ?? userData['displayName'] ?? 'User', // FIXED: Use 'name' field
-            'photoURL': userData['photoUrl'] ?? userData['photoURL'] ?? userData['imageUrl'] ?? '', // FIXED: Use 'photoUrl' field
+            'displayName': userData['name'] ??
+                userData['displayName'] ??
+                'User', // prefer 'name'
+            'photoURL': userData['photoUrl'] ??
+                userData['photoURL'] ??
+                userData['imageUrl'] ??
+                '',
             'joinedAt': FieldValue.serverTimestamp(),
             'role': 'member',
           });
@@ -366,8 +404,10 @@ class CreateGroupController extends GetxController {
         membersData.add({
           'uid': myUid,
           'email': userData['email'] ?? '',
-          'displayName': userData['name'] ?? userData['displayName'] ?? 'User', // FIXED: Use 'name' field
-          'photoURL': userData['photoUrl'] ?? userData['photoURL'] ?? userData['imageUrl'] ?? '', // FIXED: Use 'photoUrl' field
+          'displayName':
+          userData['name'] ?? userData['displayName'] ?? 'User',
+          'photoURL':
+          userData['photoUrl'] ?? userData['photoURL'] ?? userData['imageUrl'] ?? '',
           'joinedAt': FieldValue.serverTimestamp(),
           'role': 'admin',
         });
@@ -400,18 +440,13 @@ class CreateGroupController extends GetxController {
     }
   }
 
-  // NEW: Method to create group and navigate immediately
+  // Create and jump back to ChatRoom
   Future<void> createGroupAndNavigate() async {
     try {
       final groupId = await submit();
       if (groupId.isNotEmpty) {
-        // Show success message
         Get.snackbar('Success', 'Group created successfully!');
-
-        // Navigate directly to chat screen
-        Get.offAll(() => ChatRoom());
-
-        // Clear selection and name
+        Get.offAll(() => const ChatRoom());
         selected.clear();
         name.value = '';
       }
@@ -421,6 +456,27 @@ class CreateGroupController extends GetxController {
     }
   }
 
+  // ---------------------- Invites ----------------------
+
+  Future<void> inviteSelectedToExistingGroup(String groupId) async {
+    if (selected.isEmpty) {
+      throw 'Pick at least one member';
+    }
+    isSubmitting.value = true;
+    try {
+      await ChatService.instance.inviteMembersToGroup(
+        groupId: groupId,
+        newMemberIds: selected.toList(),
+      );
+      selected.clear();
+      showCommonSnackbarWidget('Success', 'Invites sent successfully');
+    } catch (e) {
+      showCommonSnackbarWidget('Error', 'Failed to send invites: $e');
+      rethrow;
+    } finally {
+      isSubmitting.value = false;
+    }
+  }
 
   Future<void> acceptInvite(AppNotification notif) async {
     isAccepting.value = true;
@@ -429,7 +485,8 @@ class CreateGroupController extends GetxController {
         groupId: notif.groupId ?? "",
         accepted: true,
       );
-      showCommonSnackbarWidget('Invite Accepted', 'You have joined ${notif.groupName}');
+      showCommonSnackbarWidget(
+          'Invite Accepted', 'You have joined ${notif.groupName}');
       if (gid != null) {
         Get.to(() => ChatScreen(groupId: gid, groupName: notif.groupName));
       }
@@ -449,7 +506,8 @@ class CreateGroupController extends GetxController {
         groupId: notif.groupId ?? "",
         accepted: false,
       );
-      showCommonSnackbarWidget('Invite Rejected', 'Invite from ${notif.senderName} rejected');
+      showCommonSnackbarWidget(
+          'Invite Rejected', 'Invite from ${notif.senderName} rejected');
     } catch (e) {
       // ignore: avoid_print
       print(e);
@@ -458,5 +516,4 @@ class CreateGroupController extends GetxController {
       isRejecting.value = false;
     }
   }
-
 }

@@ -5,6 +5,7 @@ class Group {
   final String id;
   final String name;
   final String createdBy;
+  final String? ownerId;
   final int memberCount;
   final String? avatarUrl;
   final String? description;
@@ -12,13 +13,13 @@ class Group {
   final Timestamp? lastMessageAt;
   final Timestamp? createdAt;
 
-  /// optional (filled when loading via members collectionGroup)
   final String? myRole;
 
   Group({
     required this.id,
     required this.name,
     required this.createdBy,
+    this.ownerId,
     required this.memberCount,
     this.avatarUrl,
     this.description,
@@ -30,10 +31,18 @@ class Group {
 
   factory Group.fromDoc(DocumentSnapshot<Map<String, dynamic>> d, {String? myRole}) {
     final data = d.data() ?? {};
+
+    // Normalize ownership across schemas:
+    // - Prefer ownerId when present
+    // - Fall back to createdBy for legacy docs
+    final String? ownerId = (data['ownerId'] as String?) ?? (data['createdBy'] as String?);
+    final String createdBy = (data['createdBy'] as String?) ?? (data['ownerId'] as String?) ?? '';
+
     return Group(
       id: d.id,
       name: (data['name'] ?? '') as String,
-      createdBy: (data['createdBy'] ?? '') as String,
+      createdBy: createdBy,
+      ownerId: ownerId,
       memberCount: (data['memberCount'] ?? 0) as int,
       avatarUrl: data['avatarUrl'] as String?,
       description: data['description'] as String?,
