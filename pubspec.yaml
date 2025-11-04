@@ -35,6 +35,7 @@ dependencies:
   smooth_page_indicator: ^1.2.0+3
   step_progress_indicator: ^1.0.2
   google_generative_ai: ^0.4.7
+  purchases_flutter: ^9.9.1
 
 dev_dependencies:
   flutter_lints: ^5.0.0
