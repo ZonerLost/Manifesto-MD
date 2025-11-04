@@ -300,6 +300,8 @@ class ChatService {
     return groupRef.id;
   }
 
+// lib/services/chat_service.dart
+
   Stream<List<Group>> joinedGroupsStream() {
     return _fs
         .collection('groups')
@@ -307,7 +309,17 @@ class ChatService {
         .snapshots()
         .map((q) {
       final allGroups = q.docs.map(Group.fromDoc).toList();
-      final joinedGroups = allGroups.where((g) => g.createdBy != myUid).toList();
+
+      // FIX: exclude groups owned by me (handles both ownerId and createdBy)
+      bool isOwnedByMe(Group g) {
+        final owner = (g.ownerId != null && g.ownerId!.isNotEmpty)
+            ? g.ownerId
+            : g.createdBy;
+        return owner == myUid;
+      }
+
+      final joinedGroups = allGroups.where((g) => !isOwnedByMe(g)).toList();
+
       joinedGroups.sort((a, b) {
         final aTime = a.lastMessageAt?.millisecondsSinceEpoch ?? 0;
         final bTime = b.lastMessageAt?.millisecondsSinceEpoch ?? 0;
@@ -316,6 +328,7 @@ class ChatService {
       return joinedGroups;
     });
   }
+
 
 
   Future<void> inviteMembersToGroup({
