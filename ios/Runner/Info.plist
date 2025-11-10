@@ -59,6 +59,9 @@
 	</array>
 	<key>REVERSED_CLIENT_ID</key>
 	<string>com.googleusercontent.apps.970427068745-3dpg6nej1o09of861hsm3fincnq2arip</string>
-
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

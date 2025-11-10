@@ -3,12 +3,14 @@ import 'package:get/get.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
+import 'package:manifesto_md/controllers/payment_controller.dart';
 import 'package:manifesto_md/view/widget/common_image_view_widget.dart';
 import 'package:manifesto_md/view/widget/custom_check_box_widget.dart';
 import 'package:manifesto_md/view/widget/custom_container_widget.dart';
 import 'package:manifesto_md/view/widget/custom_search_bar_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
-import 'package:manifesto_md/controllers/create_group_controller.dart'; // keep your path
+import 'package:manifesto_md/controllers/create_group_controller.dart';
+import 'package:manifesto_md/view/screens/subscription/subscription.dart';
 
 class AddGroupMembers extends StatefulWidget {
   const AddGroupMembers({super.key});
@@ -19,18 +21,35 @@ class AddGroupMembers extends StatefulWidget {
 
 class _AddGroupMembersState extends State<AddGroupMembers> {
   late final CreateGroupController c;
+  late final PaymentController paymentController;
   final TextEditingController _searchController = TextEditingController();
   final _scrollCtrl = ScrollController();
+
+  // Track existing members for filtering
+  List<String> existingMembers = [];
+  String? existingGroupId;
+  bool isAddingToExisting = false;
 
   @override
   void initState() {
     super.initState();
-   
+
     c = Get.isRegistered<CreateGroupController>()
         ? Get.find<CreateGroupController>()
         : Get.put(CreateGroupController());
+    paymentController = Get.find<PaymentController>();
 
-   
+    // Get existing group data if provided
+    final args = Get.arguments as Map<String, dynamic>?;
+    existingGroupId = args?['groupId'] as String?;
+    existingMembers = List<String>.from(args?['existingMembers'] ?? []);
+    isAddingToExisting = existingGroupId != null;
+
+    // Clear previous selection when opening for existing group
+    if (isAddingToExisting) {
+      c.selected.clear();
+    }
+
     _scrollCtrl.addListener(() {
       final max = _scrollCtrl.position.maxScrollExtent;
       if (_scrollCtrl.position.pixels > max - 280) {
@@ -48,11 +67,11 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
 
   // --- helpers to normalize user fields ---
   String _name(Map<String, dynamic> u) =>
-      (u['name'] ?? u['name'] ?? '').toString();
+      (u['name'] ?? u['displayName'] ?? '').toString();
   String _email(Map<String, dynamic> u) =>
       (u['email'] ?? '').toString();
   String _photo(Map<String, dynamic> u) =>
-      (u['photoURL'] ?? u['imageUrl'] ?? '').toString();
+      (u['photoUrl'] ?? u['photoURL'] ?? u['imageUrl'] ?? '').toString();
 
   String _initials(Map<String, dynamic> u) {
     final n = _name(u).trim();
@@ -60,7 +79,55 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
     final parts = n.split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
     final letters = parts.take(2).map((e) => e[0]).join();
     return letters.toUpperCase();
+  }
+
+  // Method for adding members to existing group
+  Future<void> _addMembersToExistingGroup() async {
+    if (c.isSubmitting.value || c.selected.isEmpty) return;
+
+    try {
+      c.isSubmitting.value = true;
+      await c.inviteSelectedToExistingGroup(existingGroupId!);
+
+      Get.back();
+      Get.snackbar('Success', 'Members added successfully');
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to add members: $e');
+    } finally {
+      c.isSubmitting.value = false;
     }
+  }
+
+  // Method for creating new group
+  Future<void> _createGroup() async {
+    if (c.isSubmitting.value) return;
+    if (!await _hasPremiumAccess()) {
+      Get.snackbar(
+        'Subscription Required',
+        'Upgrade to Manifesto MD Pro to create a new group.',
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(16),
+      );
+      Get.to(() => const Subscription());
+      return;
+    }
+
+    try {
+      c.isSubmitting.value = true;
+      await c.createGroupAndNavigate();
+    } catch (e) {
+      // Error is already handled in createGroupAndNavigate
+    } finally {
+      c.isSubmitting.value = false;
+    }
+  }
+
+  Future<bool> _hasPremiumAccess() async {
+    if (!paymentController.hasCheckedSubscription.value) {
+      await paymentController.checkIfPremium();
+    }
+    return paymentController.isPremiumUser.value;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,19 +136,26 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
         backgroundColor: Colors.transparent,
         floatingActionButton: Obx(() => c.selected.isNotEmpty
             ? Padding(
-                padding: const EdgeInsets.only(right: 5, bottom: 15),
-                child: GestureDetector(
-                  onTap: () async {
-                  String resp = await c.submit();
-                  if(resp.isNotEmpty){
-                    Get.back();
-                    Get.back();
-                   
-                  }
-                  },
-                  child:c.isSubmitting.value  ? Center(child: CircularProgressIndicator.adaptive(),) : Image.asset(Assets.imagesDone, height: 48),
-                ),
-              )
+          padding: const EdgeInsets.only(right: 5, bottom: 15),
+          child: GestureDetector(
+            onTap: isAddingToExisting ? _addMembersToExistingGroup : _createGroup,
+            child: c.isSubmitting.value
+                ? Container(
+              height: 48,
+              width: 48,
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: kSecondaryColor,
+              ),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            )
+                : Image.asset(Assets.imagesDone, height: 48),
+          ),
+        )
             : const SizedBox.shrink()),
         appBar: AppBar(
           backgroundColor: Colors.transparent,
@@ -97,42 +171,45 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
             ],
           ),
           title: Column(
-            spacing: 4,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-               MyText(
-                text: 'New Group',
+              MyText(
+                text: isAddingToExisting ? 'Add Members' : 'New Group',
                 size: 14,
                 color: kTertiaryColor,
                 weight: FontWeight.w600,
               ),
-               MyText(text: 'Add Members', size: 12, color: kTertiaryColor),
+              MyText(
+                  text: isAddingToExisting ? 'Select members to add' : 'Add Members',
+                  size: 12,
+                  color: kTertiaryColor
+              ),
             ],
           ),
         ),
         body: Obx(() {
-          // Build filtered list reactively
           final query = c.query.value.trim().toLowerCase();
-          final all = c.users; // RxList<Map>
-          final filtered = query.isEmpty
-              ? all
-              : all.where((u) {
-                  final n = _name(u).toLowerCase();
-                  final e = _email(u).toLowerCase();
-                  return n.contains(query) || e.contains(query);
-                }).toList();
+          final all = c.users;
 
-          // Create a quick lookup to render selected chips
+          // Filter out existing members and apply search filter
+          final filtered = all.where((u) {
+            final uid = u['id'] as String;
+            final isExistingMember = existingMembers.contains(uid);
+            if (isExistingMember) return false;
+
+            if (query.isEmpty) return true;
+
+            final n = _name(u).toLowerCase();
+            final e = _email(u).toLowerCase();
+            return n.contains(query) || e.contains(query);
+          }).toList();
+
           final byId = {for (final u in all) u['id'] as String: u};
 
-          return ListView(
-            controller: _scrollCtrl,
-            shrinkWrap: true,
-            padding: AppSizes.VERTICAL,
-            physics: const BouncingScrollPhysics(),
+          return Column(
             children: [
-              // Search
-              Padding( 
+              // Search Bar
+              Padding(
                 padding: AppSizes.HORIZONTAL,
                 child: CustomSearchBar(
                   hintText: 'Search Name or Email',
@@ -141,7 +218,22 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
                 ),
               ),
 
-              // Selected chips
+              // Show existing members count if adding to existing group
+              if (isAddingToExisting && existingMembers.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    children: [
+                      MyText(
+                        text: '${existingMembers.length} existing members in group',
+                        size: 12,
+                        color: kGreyColor,
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Selected members chips
               if (c.selected.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 SizedBox(
@@ -179,7 +271,7 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
                                 Container(
                                   height: 40,
                                   width: 40,
-                                  decoration:  BoxDecoration(
+                                  decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: kBorderColor,
                                   ),
@@ -227,47 +319,70 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
 
               SizedBox(height: 10,),
 
-               MyText(
-                paddingLeft: 20,
-                paddingBottom: 12,
-                text: 'All SymptoSmart MD Contacts',
-                size: 14,
-                weight: FontWeight.w600,
+              // Section title
+              Padding(
+                padding: const EdgeInsets.only(left: 20, bottom: 12),
+                child: MyText(
+                  text: isAddingToExisting ? 'Available Contacts' : 'All SymptoSmart MD Contacts',
+                  size: 14,
+                  weight: FontWeight.w600,
+                ),
               ),
 
               // Users list
-              ListView.separated(
-                itemCount: filtered.length + ((c.hasMore.value && c.isLoadingPage.value) ? 1 : 0),
-                padding: AppSizes.HORIZONTAL,
-              physics: const NeverScrollableScrollPhysics(),
-                shrinkWrap: true,
-                separatorBuilder: (_, __) => const SizedBox(height: 16),
-                itemBuilder: (_, i) {
-                  // loader row at end
-                  if (i >= filtered.length) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(12.0),
-                        child: CircularProgressIndicator(strokeWidth: 2),
+              Expanded(
+                child: filtered.isEmpty && !c.isLoadingPage.value
+                    ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      MyText(
+                        text: 'No contacts available',
+                        size: 16,
+                        color: kGreyColor,
                       ),
+                      if (isAddingToExisting && existingMembers.isNotEmpty)
+                        MyText(
+                          text: 'All contacts are already in the group',
+                          size: 12,
+                          color: kGreyColor,
+                          paddingTop: 8,
+                        ),
+                    ],
+                  ),
+                )
+                    : ListView.separated(
+                  controller: _scrollCtrl,
+                  itemCount: filtered.length + ((c.hasMore.value && c.isLoadingPage.value) ? 1 : 0),
+                  padding: AppSizes.HORIZONTAL,
+                  physics: const BouncingScrollPhysics(),
+                  separatorBuilder: (_, __) => const SizedBox(height: 16),
+                  itemBuilder: (_, i) {
+                    if (i >= filtered.length) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(12.0),
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      );
+                    }
+
+                    final u = filtered[i];
+                    final uid = u['id'] as String;
+                    final img = _photo(u);
+                    final nm = _name(u);
+                    final em = _email(u);
+                    final checked = c.selected.contains(uid);
+
+                    return _MemberTile(
+                      name: nm,
+                      email: em,
+                      imageUrl: img,
+                      isSelected: checked,
+                      onTap: () => checked ? c.selected.remove(uid) : c.selected.add(uid),
                     );
-                  }
-
-                  final u = filtered[i];
-                  final uid = u['id'] as String;
-                  final img = _photo(u);
-                  final nm = _name(u);
-                  final em = _email(u);
-                  final checked = c.selected.contains(uid);
-
-                  return _MemberTile(
-                    name: nm,
-                    email: em,
-                    imageUrl: img,
-                    isSelected: checked,
-                    onTap: () => checked ? c.selected.remove(uid) : c.selected.add(uid),
-                  );
-                },
+                  },
+                ),
               ),
             ],
           );
@@ -310,7 +425,7 @@ class _MemberTile extends StatelessWidget {
             Container(
               height: 48,
               width: 48,
-              decoration:  BoxDecoration(
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: kBorderColor,
               ),

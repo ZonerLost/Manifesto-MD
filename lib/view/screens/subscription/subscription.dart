@@ -5,10 +5,11 @@ import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_fonts.dart';
 import 'package:manifesto_md/constants/app_images.dart';
 import 'package:manifesto_md/constants/app_sizes.dart';
-import 'package:manifesto_md/view/widget/custom_app_bar.dart';
+import 'package:manifesto_md/controllers/payment_controller.dart';
 import 'package:manifesto_md/view/widget/custom_container_widget.dart';
 import 'package:manifesto_md/view/widget/my_button_widget.dart';
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 
 class Subscription extends StatefulWidget {
   const Subscription({super.key});
@@ -18,6 +19,9 @@ class Subscription extends StatefulWidget {
 }
 
 class _SubscriptionState extends State<Subscription> {
+  late final PaymentController paymentController;
+  final CarouselSliderController _carouselController = CarouselSliderController();
+
   /// 0 = Free, 1 = Premium
   int currentPlanIndex = 0;
 
@@ -27,7 +31,7 @@ class _SubscriptionState extends State<Subscription> {
     });
   }
 
-  int selectedPlanIndex = 1;
+  int selectedPlanIndex = 0;
 
   final List<Map<String, String>> _premiumPlan = [
     {'title': 'Monthly', 'description': 'Billed monthly', 'price': '\$ 350.00'},
@@ -46,6 +50,281 @@ class _SubscriptionState extends State<Subscription> {
     {'title': 'Monthly', 'description': 'Billed monthly', 'price': '\$ 7.7'},
     {'title': 'Annually', 'description': 'Billed annually', 'price': '\$ 75.5'},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    paymentController = Get.find<PaymentController>();
+  }
+
+  int _effectiveSelectedIndex(int length) {
+    if (length <= 0) return 0;
+    final num clamped = selectedPlanIndex.clamp(0, length - 1);
+    return clamped is int ? clamped : clamped.toInt();
+  }
+
+  void _jumpToPlan(int index) {
+    setState(() {
+      selectedPlanIndex = index;
+    });
+    if (_carouselController.ready) {
+      _carouselController.animateToPage(index);
+    }
+  }
+
+  String _formatSubscriptionPeriod(String? isoPeriod) {
+    if (isoPeriod == null || isoPeriod.isEmpty) return '';
+    final exp = RegExp(r'P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?', caseSensitive: false);
+    final match = exp.firstMatch(isoPeriod);
+    if (match == null) return isoPeriod;
+    final parts = <String>[];
+    final labels = ['year', 'month', 'week', 'day'];
+    for (var i = 0; i < labels.length; i++) {
+      final valueStr = match.group(i + 1);
+      if (valueStr == null) continue;
+      final value = int.tryParse(valueStr);
+      if (value == null) continue;
+      final suffix = value == 1 ? labels[i] : '${labels[i]}s';
+      parts.add('$value $suffix');
+    }
+    return parts.isEmpty ? isoPeriod : parts.join(' ');
+  }
+
+  String _readablePackageType(Package package) {
+    switch (package.packageType) {
+      case PackageType.weekly:
+        return 'Weekly';
+      case PackageType.monthly:
+        return 'Monthly';
+      case PackageType.twoMonth:
+        return '2 Months';
+      case PackageType.threeMonth:
+        return '3 Months';
+      case PackageType.sixMonth:
+        return '6 Months';
+      case PackageType.annual:
+        return 'Annual';
+      case PackageType.lifetime:
+        return 'Lifetime';
+      case PackageType.custom:
+      case PackageType.unknown:
+        return package.identifier;
+    }
+  }
+
+  String _formatPackageTitle(Package package) {
+    final title = package.storeProduct.title.trim();
+    if (title.isNotEmpty) return title;
+    return '${_readablePackageType(package)} Plan';
+  }
+
+  String _packageDescription(Package package) {
+    final product = package.storeProduct;
+    final period = _formatSubscriptionPeriod(product.subscriptionPeriod);
+    if (period.isNotEmpty) {
+      return 'Billed every $period';
+    }
+    if (product.description.isNotEmpty) {
+      return product.description;
+    }
+    return _readablePackageType(package);
+  }
+
+  Future<void> _handleSubscribe() async {
+    final packages = paymentController.packages;
+    if (packages.isEmpty) {
+      Get.snackbar(
+        'Plans unavailable',
+        'RevenueCat did not return any products. Please try again later.',
+      );
+      return;
+    }
+    final idx = _effectiveSelectedIndex(packages.length);
+    final selectedPackage = packages[idx];
+    await paymentController.purchase(PurchaseParams.package(selectedPackage));
+  }
+
+  Widget _buildStatusBanner() {
+    return Obx(() {
+      final hasStatus = paymentController.hasCheckedSubscription.value;
+      final isPremium = paymentController.isPremiumUser.value;
+      final bool isLoading = !hasStatus;
+      final text =
+          isLoading
+              ? 'Checking your RevenueCat subscription status...'
+              : isPremium
+                  ? 'Your Manifesto MD Pro subscription is active via RevenueCat.'
+                  : 'You are currently on the free tier. Subscribe to unlock chat group creation.';
+      final Color accent = isPremium
+          ? const Color(0xFF1B9C85)
+          : Colors.orangeAccent;
+      final icon = isPremium ? Icons.verified : Icons.info_outline;
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: accent.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: accent, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: MyText(
+                text: text,
+                size: 12,
+                color: kTertiaryColor,
+                lineHeight: 1.4,
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildPlansCarousel() {
+    return Obx(() {
+      final packages = paymentController.packages;
+      final fallbackPlans =
+          currentPlanIndex == 0 ? _premiumPlan : _standardPlan;
+      final bool hasRevenueCatPlans = packages.isNotEmpty;
+      final int planCount =
+          hasRevenueCatPlans ? packages.length : fallbackPlans.length;
+      final bool isBusy =
+          paymentController.isLoading.value && packages.isEmpty;
+
+      if (isBusy) {
+        return SizedBox(
+          height: 180,
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
+
+      if (planCount == 0) {
+        return Container(
+          height: 120,
+          alignment: Alignment.center,
+          child: MyText(
+            text: 'No subscription plans are available right now.',
+            size: 12,
+            color: kGreyColor,
+            textAlign: TextAlign.center,
+          ),
+        );
+      }
+
+      final selectedIndex = _effectiveSelectedIndex(planCount);
+
+      return CarouselSlider(
+        carouselController: _carouselController,
+        options: CarouselOptions(
+          viewportFraction: 0.4,
+          enableInfiniteScroll: hasRevenueCatPlans ? false : true,
+          autoPlay: false,
+          height: 180,
+          enlargeCenterPage: true,
+          onPageChanged: (index, reason) {
+            setState(() {
+              selectedPlanIndex = index;
+            });
+          },
+        ),
+        items: List.generate(planCount, (index) {
+          if (hasRevenueCatPlans) {
+            final package = packages[index];
+            return _Plan(
+              title: _formatPackageTitle(package),
+              description: _packageDescription(package),
+              price: package.storeProduct.priceString,
+              isSelected: selectedIndex == index,
+              onTap: () => _jumpToPlan(index),
+            );
+          }
+          final plan = fallbackPlans[index];
+          return _Plan(
+            title: plan['title']!,
+            description: plan['description']!,
+            price: plan['price']!,
+            isSelected: selectedIndex == index,
+            onTap: () => _jumpToPlan(index),
+          );
+        }),
+      );
+    });
+  }
+
+  Widget _buildSelectedPlanDetails() {
+    return Obx(() {
+      final packages = paymentController.packages;
+      if (packages.isEmpty) return const SizedBox.shrink();
+      final idx = _effectiveSelectedIndex(packages.length);
+      final package = packages[idx];
+      final product = package.storeProduct;
+      final offeringId = paymentController.offerings.value?.current?.identifier;
+      final billingCycle = _formatSubscriptionPeriod(product.subscriptionPeriod);
+      final intro = product.introductoryPrice;
+      final introPeriod =
+          intro == null ? '' : _formatSubscriptionPeriod(intro.period);
+      final introText =
+          intro == null
+              ? null
+              : introPeriod.isEmpty
+                  ? intro.priceString
+                  : '${intro.priceString} · $introPeriod x${intro.cycles}';
+      return Container(
+        margin: const EdgeInsets.only(top: 20),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: kPrimaryColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(width: 1.0, color: kBorderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            MyText(
+              text: 'Selected RevenueCat Plan',
+              size: 12,
+              weight: FontWeight.w600,
+              color: kGreyColor,
+              paddingBottom: 8,
+            ),
+            MyText(
+              text: _formatPackageTitle(package),
+              size: 18,
+              weight: FontWeight.w700,
+              paddingBottom: 8,
+            ),
+            if (product.description.isNotEmpty)
+              MyText(
+                text: product.description,
+                size: 12,
+                lineHeight: 1.4,
+                color: kGreyColor,
+                paddingBottom: 12,
+              ),
+            _PlanDetailRow(label: 'Price', value: product.priceString),
+            if (billingCycle.isNotEmpty)
+              _PlanDetailRow(label: 'Billing cycle', value: billingCycle),
+            if (offeringId != null)
+              _PlanDetailRow(label: 'Offering', value: offeringId),
+            _PlanDetailRow(label: 'Product ID', value: product.identifier),
+            _PlanDetailRow(
+              label: 'Package type',
+              value: _readablePackageType(package),
+            ),
+            if (introText != null)
+              _PlanDetailRow(label: 'Intro offer', value: introText),
+          ],
+        ),
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -162,6 +441,7 @@ class _SubscriptionState extends State<Subscription> {
                           color: kGreyColor,
                           paddingBottom: 16,
                         ),
+                        _buildStatusBanner(),
                         Container(
                           padding: EdgeInsets.all(16),
                           decoration: BoxDecoration(
@@ -280,45 +560,8 @@ class _SubscriptionState extends State<Subscription> {
                     ),
                   ),
                   SizedBox(height: 24),
-                  CarouselSlider(
-                    carouselController: CarouselSliderController(),
-                    options: CarouselOptions(
-                      viewportFraction: 0.4,
-                      enableInfiniteScroll: false,
-                      autoPlay: false,
-                      height: 150,
-                      initialPage: 1,
-                      enlargeCenterPage: true,
-                      onPageChanged: (index, reason) {
-                        setState(() {
-                          selectedPlanIndex = index;
-                        });
-                      },
-                    ),
-                    items: List.generate(
-                      currentPlanIndex == 0
-                          ? _premiumPlan.length
-                          : _standardPlan.length,
-                      (index) {
-                        return _Plan(
-                          title:
-                              currentPlanIndex == 0
-                                  ? _premiumPlan[index]['title']!
-                                  : _standardPlan[index]['title']!,
-                          description:
-                              currentPlanIndex == 0
-                                  ? _premiumPlan[index]['description']!
-                                  : _standardPlan[index]['description']!,
-                          price:
-                              currentPlanIndex == 0
-                                  ? _premiumPlan[index]['price']!
-                                  : _standardPlan[index]['price']!,
-                          isSelected: selectedPlanIndex == index,
-                          onTap: () {},
-                        );
-                      },
-                    ),
-                  ),
+                  _buildPlansCarousel(),
+                  _buildSelectedPlanDetails(),
                   Padding(
                     padding: AppSizes.DEFAULT,
                     child: Column(
@@ -334,31 +577,42 @@ class _SubscriptionState extends State<Subscription> {
                           paddingBottom: 12,
                           textAlign: TextAlign.center,
                         ),
-                        MyButton(
-                          radius: 16,
-                          height: 56,
-                          buttonText: '',
-                          onTap: () {},
-                          customChild: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: MyText(
-                                    text: 'Subscribe Now',
-                                    size: 16,
-                                    weight: FontWeight.w600,
-                                    color: kPrimaryColor,
+                        Obx(() {
+                          final hasPackages =
+                              paymentController.packages.isNotEmpty;
+                          final busy = paymentController.isLoading.value &&
+                              !hasPackages;
+                          return MyButton(
+                            radius: 16,
+                            height: 56,
+                            enabled: hasPackages,
+                            isLoading: busy,
+                            buttonText: 'Subscribe Now',
+                            onTap: () => _handleSubscribe(),
+                            customChild: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: MyText(
+                                      text:
+                                          hasPackages
+                                              ? 'Subscribe with RevenueCat'
+                                              : 'Fetching plans...',
+                                      size: 16,
+                                      weight: FontWeight.w600,
+                                      color: kPrimaryColor,
+                                    ),
                                   ),
-                                ),
-                                Image.asset(
-                                  Assets.imagesArrowNextRounded,
-                                  height: 24,
-                                ),
-                              ],
+                                  Image.asset(
+                                    Assets.imagesArrowNextRounded,
+                                    height: 24,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ),
+                          );
+                        }),
                         Padding(
                           padding: const EdgeInsets.only(top: 10.0),
                           child: RichText(
@@ -484,6 +738,42 @@ class _Plan extends StatelessWidget {
             weight: FontWeight.w600,
             textAlign: TextAlign.center,
             paddingBottom: 12,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanDetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _PlanDetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: MyText(
+              text: label,
+              size: 11,
+              color: kGreyColor,
+              weight: FontWeight.w600,
+            ),
+          ),
+          Expanded(
+            child: MyText(
+              text: value,
+              size: 12,
+              color: kTertiaryColor,
+              weight: FontWeight.w600,
+            ),
           ),
         ],
       ),

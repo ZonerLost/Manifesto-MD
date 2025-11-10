@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:manifesto_md/controllers/auth_controller.dart';
 import 'package:manifesto_md/controllers/create_group_controller.dart';
 import 'package:manifesto_md/controllers/gemini_controller.dart';
+import 'package:manifesto_md/controllers/payment_controller.dart';
 import 'package:manifesto_md/controllers/profile_controller.dart';
 
 class AppBindings extends Bindings {
@@ -10,6 +11,7 @@ class AppBindings extends Bindings {
     Get.put(AuthController());
     Get.put(ProfileController());
     Get.lazyPut(() => CreateGroupController());
+    Get.put(PaymentController(), permanent: true);
     Get.put(() => GeminiController());
     
   }

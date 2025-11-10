@@ -123,7 +123,10 @@ Future<String> checkForEmail(String email) async {
       createdAt: DateTime.now());
       SharePrefService.instance.addUserId(userCredential.user!.uid);
 
-        await _firestore.collection("users").doc(userCredential.user!.uid).set(authModel.toMap());
+        await _firestore
+            .collection("users")
+            .doc(userCredential.user!.uid)
+            .set(authModel.toMap(), SetOptions(merge: true));
             
       return userCredential.user;
     } catch (e) {

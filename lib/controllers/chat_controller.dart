@@ -1,112 +1,461 @@
+// lib/controllers/chat_controller.dart
 import 'dart:async';
+import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:manifesto_md/models/user_group_model.dart';
-import 'package:manifesto_md/services/profile_service.dart';
-import '../services/chat_service.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
+
 import '../models/chat_message_model.dart';
+import '../models/user_group_model.dart';
 
 class ChatController extends GetxController {
   ChatController(this.groupId);
   final String groupId;
 
- StreamSubscription? _membersSub;
-final members = <UserLite>[].obs;
-  RxString userId = "".obs;
+  // Services
+  final FirebaseFirestore _fs = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final ImagePicker _picker = ImagePicker();
 
+  // UI/state
+  final RxList<ChatMessage> messages = <ChatMessage>[].obs;
+  final RxList<ChatMessage> filteredMessages = <ChatMessage>[].obs;
+  final RxBool isSending = false.obs;
+  final RxList<UserLite> members = <UserLite>[].obs;
+  final TextEditingController input = TextEditingController();
 
-  // UI state
-  final messages = <ChatMessage>[].obs;
-  final input = TextEditingController();
-  final isSending = false.obs;
+  // Search
+  final RxString searchQuery = ''.obs;
+  final RxBool isSearching = false.obs;
 
-  // Optional: keep track of what you're editing
-  final editingMessageId = RxnString();
+  // Typing
+  final RxList<String> typingUsers = <String>[].obs;
+  Timer? _typingClearTimer;
 
-  StreamSubscription<List<ChatMessage>>? _sub;
+  // Upload progress (NEW)
+  final RxBool isUploading = false.obs;
+  final RxDouble uploadProgress = 0.0.obs;
 
+  // Subscriptions
+  StreamSubscription? _msgSub;
+  StreamSubscription? _typingSub;
+  StreamSubscription? _membersSub;
 
+  String get userId => _auth.currentUser?.uid ?? '';
+  String get userEmail => _auth.currentUser?.email ?? '';
+  String get userName =>
+      _auth.currentUser?.displayName ??
+          (userEmail.isNotEmpty ? userEmail.split('@').first : 'User');
+
+  // ---- Firestore paths ------------------------------------------------------
+  DocumentReference get _groupRef => _fs.collection('groups').doc(groupId);
+  CollectionReference get _msgCol => _groupRef.collection('messages');
+  CollectionReference get _typingCol => _groupRef.collection('typing');
+
+  // ---- lifecycle ------------------------------------------------------------
   @override
   void onInit() {
     super.onInit();
-    _sub = ChatService.instance
-        .messagesStream(groupId, limit: 200)
-        .listen(messages.assignAll);
-     _membersSub = ChatService.instance
-        .acceptedMembersProfilesStream(groupId)
-        .listen(members.assignAll);
+
+    _loadMessages();
+    _loadGroupMembers();
+    _listenToTyping();
+
+    ever(searchQuery, (query) {
+      if ((query as String).isEmpty) {
+        isSearching.value = false;
+        filteredMessages.assignAll(messages);
+      } else {
+        isSearching.value = true;
+        _filterMessages(query);
+      }
+    });
   }
 
+  void _loadMessages() {
+    // Ascending (oldest -> newest) so latest is at bottom
+    _msgSub = _msgCol
+        .orderBy('sentAt', descending: false)
+        .snapshots()
+        .listen((q) async {
+      final list = q.docs.map((d) => ChatMessage.fromDoc(d)).toList();
+      messages.assignAll(list);
 
+      if (searchQuery.value.isNotEmpty) {
+        _filterMessages(searchQuery.value);
+      } else {
+        filteredMessages.assignAll(list);
+      }
 
+      await markAllVisibleAsRead();
+    });
+  }
 
-  Future<void> send(String senderName) async {
-    final txt = input.text.trim();
-    if (txt.isEmpty) return;
+  void _loadGroupMembers() {
+    _membersSub = _fs
+        .collection('groups')
+        .doc(groupId)
+        .snapshots()
+        .asyncMap((groupDoc) async {
+      final groupData = groupDoc.data() as Map<String, dynamic>?;
+      if (groupData == null) return <UserLite>[];
 
+      final memberIds = List<String>.from(groupData['memberIds'] ?? []);
+      final memberNames =
+      Map<String, String>.from(groupData['memberNames'] ?? {});
+      final memberEmails =
+      Map<String, String>.from(groupData['memberEmailsMap'] ?? {});
+      final memberPhotos =
+      Map<String, String>.from(groupData['memberPhotos'] ?? {});
+
+      final membersList = <UserLite>[];
+      for (final memberId in memberIds) {
+        membersList.add(UserLite(
+          uid: memberId,
+          displayName: memberNames[memberId] ?? 'User',
+          email: memberEmails[memberId] ?? '',
+          photoURL: memberPhotos[memberId] ?? '',
+        ));
+      }
+      return membersList;
+    }).listen(members.assignAll);
+  }
+
+  void _listenToTyping() {
+    _typingSub = _typingCol
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .listen((q) {
+      final now = DateTime.now();
+      final active = <String>[];
+      for (final d in q.docs) {
+        if (d.id == userId) continue;
+        final data = d.data() as Map<String, dynamic>;
+        final ts = (data['timestamp'] as Timestamp?)?.toDate();
+        final isTyping = data['isTyping'] == true;
+        if (isTyping && ts != null && now.difference(ts).inSeconds < 3) {
+          active.add((data['userName'] ?? 'User').toString());
+        }
+      }
+      typingUsers.assignAll(active);
+    });
+  }
+
+  @override
+  void onClose() {
+    _msgSub?.cancel();
+    _typingSub?.cancel();
+    _membersSub?.cancel();
+    _stopTyping();
+    super.onClose();
+  }
+
+  // ---- Search ---------------------------------------------------------------
+  void _filterMessages(String query) {
+    final lower = query.toLowerCase();
+    final filtered = messages.where((m) {
+      return m.message.toLowerCase().contains(lower) ||
+          (m.userName ?? '').toLowerCase().contains(lower);
+    }).toList();
+    filteredMessages.assignAll(filtered);
+  }
+
+  void setSearchQuery(String query) => searchQuery.value = query;
+
+  void clearSearch() {
+    searchQuery.value = '';
+    isSearching.value = false;
+    filteredMessages.assignAll(messages);
+  }
+
+  // ---- typing ---------------------------------------------------------------
+  void onTypingChanged(bool typing) {
+    if (userId.isEmpty) return;
+    if (typing) {
+      _typingCol.doc(userId).set({
+        'isTyping': true,
+        'userId': userId,
+        'userName': userName,
+        'timestamp': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      _typingClearTimer?.cancel();
+      _typingClearTimer = Timer(const Duration(seconds: 2), _stopTyping);
+    } else {
+      _stopTyping();
+    }
+  }
+
+  void _stopTyping() {
+    _typingClearTimer?.cancel();
+    if (userId.isEmpty) return;
+    _typingCol.doc(userId).delete().catchError((_) {});
+  }
+
+  // ---- replies --------------------------------------------------------------
+  Map<String, dynamic>? _replyingTo;
+  void setReplyTo(Map<String, dynamic>? data) => _replyingTo = data;
+
+  // ---- send text / attachments / media -------------------------------------
+  Future<void> send(String senderDisplayName) async {
+    final text = input.text.trim();
+    if (text.isEmpty) return;
     isSending.value = true;
     try {
-      await ChatService.instance.sendTextMessage(groupId: groupId,
-      text: txt, senderName: senderName);
-      input.clear();
-    } catch (e) {
-      Get.snackbar('Send failed', '$e', snackPosition: SnackPosition.BOTTOM);
+      await _sendMessage(
+        message: text,
+        type: 'text',
+        replyTo: _replyingTo,
+      );
+      // Input is cleared by UI after calling this method
     } finally {
       isSending.value = false;
+      onTypingChanged(false);
     }
   }
 
-
-  Future<void> startEdit(ChatMessage m) async {
-    editingMessageId.value = m.id;
-    input.text = m.text;
+  Future<void> sendAttachmentBundle({
+    required List<Map<String, dynamic>> atts,
+    String text = '',
+  }) async {
+    if (atts.isEmpty && text.trim().isEmpty) return;
+    await _sendMessage(
+      message: text.trim().isEmpty ? 'Sent ${atts.length} file(s)' : text.trim(),
+      type: atts.length == 1 ? 'file' : 'files',
+      attachments: atts,
+      replyTo: _replyingTo,
+    );
+    _replyingTo = null;
   }
 
-  Future<void> confirmEdit() async {
-    final id = editingMessageId.value;
-    final txt = input.text.trim();
-    if (id == null || txt.isEmpty) return;
+  Future<void> _sendMessage({
+    required String message,
+    required String type, // text | image | video | file | files
+    String? mediaUrl,
+    Map<String, dynamic>? replyTo,
+    List<Map<String, dynamic>>? attachments,
+  }) async {
+    final me = _auth.currentUser;
+    if (me == null) return;
+
+    final data = {
+      'message': message,
+      'type': type,
+      'mediaUrl': mediaUrl,
+      'attachments': attachments,
+      'replyTo': replyTo,
+      'sentAt': FieldValue.serverTimestamp(),
+      'userId': me.uid,
+      'userName': me.displayName ?? (me.email?.split('@').first ?? 'You'),
+      'photoUrl': me.photoURL,
+      'status': 'sent',
+      'readBy': [me.uid],
+      'reactions': <String, dynamic>{},
+    };
+
+    await _msgCol.add(data);
+
+    await _groupRef.set({
+      'lastMessage': type == 'text' ? message : '[${type.toUpperCase()}]',
+      'lastMessageAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  // ---- camera/gallery upload with PROGRESS ----------------------------------
+  Future<String?> pickAndUploadMedia({
+    required bool isVideo,
+    required ImageSource source,
+    int imgMaxW = 1024,
+    int imgMaxH = 1024,
+    int imgQuality = 85,
+    int maxImageMB = 20,
+    int maxVideoMB = 100,
+  }) async {
+    final picked = isVideo
+        ? await _picker.pickVideo(source: source)
+        : await _picker.pickImage(
+      source: source,
+      maxWidth: imgMaxW.toDouble(),
+      maxHeight: imgMaxH.toDouble(),
+      imageQuality: imgQuality,
+    );
+    if (picked == null) return null;
+
+    final file = File(picked.path);
+    final sizeMB = (await file.length()) / (1024 * 1024);
+    if (!isVideo && sizeMB > maxImageMB) return null;
+    if (isVideo && sizeMB > maxVideoMB) return null;
+
+    final fileName =
+        '${DateTime.now().millisecondsSinceEpoch}_${p.basename(file.path)}';
+    final ref = _storage.ref().child('groups/$groupId/media/$fileName');
+
+    final ext = p.extension(fileName).replaceFirst('.', '').toLowerCase();
+    final contentType =
+        (isVideo ? 'video/' : 'image/') +
+            (ext.isEmpty ? (isVideo ? 'mp4' : 'jpeg') : ext);
+
+    isUploading.value = true;
+    uploadProgress.value = 0;
+
     try {
-      await ChatService.instance.editMessage(
-        groupId: groupId,
-        messageId: id,
-        newText: txt,
+      final task = ref.putFile(
+        file,
+        SettableMetadata(contentType: contentType),
       );
-      editingMessageId.value = null;
-      input.clear();
-    } catch (e) {
-      // Will be permission-denied unless your rules allow author updates
-      Get.snackbar('Edit failed', '$e', snackPosition: SnackPosition.BOTTOM);
+
+      task.snapshotEvents.listen((s) {
+        if (s.totalBytes > 0) {
+          uploadProgress.value = s.bytesTransferred / s.totalBytes;
+        }
+      });
+
+      await task;
+      final url = await ref.getDownloadURL();
+      return url;
+    } finally {
+      await Future.delayed(const Duration(milliseconds: 200));
+      isUploading.value = false;
+      uploadProgress.value = 0;
     }
   }
 
-  Future<void> deleteMessage(String messageId) async {
+  // ---- file picker + upload with PROGRESS -----------------------------------
+  Future<List<PlatformFile>?> pickFiles() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: [
+        'pdf','doc','docx','xls','xlsx','ppt','pptx',
+        'txt','zip','jpg','jpeg','png','gif','webp','heic','heif','mp4','mov','m4v','webm'
+      ],
+      withData: false, // keep memory lower; we'll stream from file path
+    );
+    return result?.files;
+  }
+
+  Future<String?> uploadFileAttachment(PlatformFile f, {int maxMB = 50}) async {
+    if (f.path == null) return null;
+    final file = File(f.path!);
+    final sizeMB = (await file.length()) / (1024 * 1024);
+    if (sizeMB > maxMB) return null;
+
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}_${f.name}';
+    final ref = _storage.ref().child('groups/$groupId/attachments/$fileName');
+
+    final ext = p.extension(fileName).toLowerCase();
+    final contentType = _guessContentType(ext);
+
+    isUploading.value = true;
+    uploadProgress.value = 0;
+
     try {
-      await ChatService.instance.deleteMessage(
-        groupId: groupId,
-        messageId: messageId,
+      final task = ref.putFile(
+        file,
+        SettableMetadata(contentType: contentType),
       );
-    } catch (e) {
-      // If hard delete is blocked by rules, try soft delete instead
-      try {
-        await ChatService.instance.softDeleteMessage(
-          groupId: groupId,
-          messageId: messageId,
-        );
-      } catch (e2) {
-        Get.snackbar('Delete failed', '$e2', snackPosition: SnackPosition.BOTTOM);
+
+      task.snapshotEvents.listen((s) {
+        if (s.totalBytes > 0) {
+          uploadProgress.value = s.bytesTransferred / s.totalBytes;
+        }
+      });
+
+      await task;
+      return await ref.getDownloadURL();
+    } finally {
+      await Future.delayed(const Duration(milliseconds: 200));
+      isUploading.value = false;
+      uploadProgress.value = 0;
+    }
+  }
+
+  String _guessContentType(String ext) {
+    switch (ext) {
+      case '.pdf':
+        return 'application/pdf';
+      case '.doc':
+        return 'application/msword';
+      case '.docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case '.xls':
+        return 'application/vnd.ms-excel';
+      case '.xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case '.ppt':
+        return 'application/vnd.ms-powerpoint';
+      case '.pptx':
+        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      case '.zip':
+        return 'application/zip';
+      case '.txt':
+        return 'text/plain';
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.png':
+        return 'image/png';
+      case '.gif':
+        return 'image/gif';
+      case '.webp':
+        return 'image/webp';
+      case '.heic':
+      case '.heif':
+        return 'image/heic';
+      case '.mp4':
+        return 'video/mp4';
+      case '.mov':
+        return 'video/quicktime';
+      case '.m4v':
+        return 'video/x-m4v';
+      case '.webm':
+        return 'video/webm';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  // quick helpers to send image/video after upload
+  Future<void> sendImage(String url) =>
+      _sendMessage(message: '', type: 'image', mediaUrl: url, replyTo: _replyingTo);
+
+  Future<void> sendVideo(String url) =>
+      _sendMessage(message: '', type: 'video', mediaUrl: url, replyTo: _replyingTo);
+
+  // ---- reactions / delete / read -------------------------------------------
+  Future<void> addReaction(String messageId, String emoji) async {
+    await _msgCol.doc(messageId).update({
+      'reactions.$emoji': FieldValue.arrayUnion([userId])
+    });
+  }
+
+  Future<void> removeReaction(String messageId, String emoji) async {
+    await _msgCol.doc(messageId).update({
+      'reactions.$emoji': FieldValue.arrayRemove([userId])
+    });
+  }
+
+  Future<void> deleteMessage(String messageId) =>
+      _msgCol.doc(messageId).delete();
+
+  Future<void> markAllVisibleAsRead() async {
+    if (userId.isEmpty) return;
+    final batch = _fs.batch();
+    for (final m in messages) {
+      if (!(m.readBy?.contains(userId) ?? false)) {
+        final ref = _msgCol.doc(m.id);
+        batch.update(ref, {
+          'readBy': FieldValue.arrayUnion([userId]),
+          'status': 'read',
+        });
       }
     }
-  }
-
-  void onTypingChanged(bool isTyping) {
-    ChatService.instance.setTyping(groupId, isTyping);
-  }
- @override
-  void onClose() {
-    _membersSub?.cancel();
-     _sub?.cancel();
-    input.dispose();
-    super.onClose();
+    await batch.commit().catchError((_) {});
   }
 }

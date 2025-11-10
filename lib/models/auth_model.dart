@@ -4,6 +4,7 @@ class AuthModel {
   final String? name;
   final String? country;
   final String? photoUrl;
+  final String? fcmToken;
   final DateTime createdAt;
 
 
@@ -13,6 +14,7 @@ class AuthModel {
     this.name,
     this.photoUrl,
     this.country,
+    this.fcmToken,
     required this.createdAt,
   });
 
@@ -24,6 +26,7 @@ class AuthModel {
       'country' : country,
       'photoUrl': photoUrl,
       'createdAt': createdAt.toIso8601String(),
+      if (fcmToken != null) 'fcmToken': fcmToken,
     };
   }
 
@@ -34,6 +37,7 @@ class AuthModel {
       name: map['name'],
       country: map['country'],
       photoUrl: map['photoUrl'],
+      fcmToken: map['fcmToken'],
       createdAt: DateTime.parse(map['createdAt']),
     );
   }
@@ -44,6 +48,7 @@ class AuthModel {
     String? email,
     String? country,
     String? photoUrl,
+    String? fcmToken,
     DateTime? createdAt,
   }) {
     return AuthModel(
@@ -52,6 +57,7 @@ class AuthModel {
       email: email ?? this.email,
       country: country ?? this.country,
       photoUrl: photoUrl ?? this.photoUrl,
+      fcmToken: fcmToken ?? this.fcmToken,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -64,10 +70,10 @@ class AuthModel {
         'name: $name, '
         'country: $country ' 
         'photoUrl: $photoUrl, '
+        'fcmToken: $fcmToken, '
         'createdAt: $createdAt'
         ')';
   }
 }
-
 
 

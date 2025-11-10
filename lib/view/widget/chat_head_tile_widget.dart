@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:get/get_core/src/get_main.dart';
-import 'package:get/get_navigation/get_navigation.dart';
+import 'package:get/get.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/view/screens/chat_room/chat_screen.dart';
+import 'package:manifesto_md/view/widget/common_image_view_widget.dart'; // <-- use your common image widget
 import 'package:manifesto_md/view/widget/my_text_widget.dart';
 
 class ChatHeadTile extends StatelessWidget {
@@ -11,8 +11,8 @@ class ChatHeadTile extends StatelessWidget {
   final String message;
   final String groupId;
   final String groupName;
-  final String unread;
-  final String imageUrl;
+  final String unread;   // "0", "1", "2", ...
+  final String imageUrl; // group avatar url
   final bool seen;
 
   const ChatHeadTile({
@@ -23,23 +23,27 @@ class ChatHeadTile extends StatelessWidget {
     required this.unread,
     required this.imageUrl,
     required this.seen,
-    required this.groupId, 
-    required this.groupName
+    required this.groupId,
+    required this.groupName,
   }) : super(key: key);
+
+  String _initials(String s) {
+    final parts = s.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    if (parts.isEmpty) return 'G';
+    return parts.take(2).map((e) => e[0]).join().toUpperCase();
+  }
 
   @override
   Widget build(BuildContext context) {
-    bool hasUnread =
-        unread != null &&
-        unread != "0" &&
-        unread != 0 &&
-        unread.toString().isNotEmpty;
+    // unread is non-nullable; treat "0" or empty as no-unread
+    final bool hasUnread = unread.trim().isNotEmpty && unread != '0';
+
     return GestureDetector(
       onTap: () {
-        Get.to(() => ChatScreen(groupId: groupId, groupName: groupName, ));
+        Get.to(() => ChatScreen(groupId: groupId, groupName: groupName));
       },
       child: Container(
-        padding: EdgeInsets.all(12),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: kPrimaryColor,
           borderRadius: BorderRadius.circular(16),
@@ -47,6 +51,7 @@ class ChatHeadTile extends StatelessWidget {
         ),
         child: Row(
           children: [
+            // Avatar: show imageUrl if available, else initials
             Container(
               height: 48,
               width: 48,
@@ -54,29 +59,31 @@ class ChatHeadTile extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: kBorderColor,
               ),
-              child: Center(
+              clipBehavior: Clip.antiAlias,
+              child: (imageUrl.isNotEmpty)
+                  ? CommonImageView(
+                url: imageUrl,
+                height: 48,
+                width: 48,
+                radius: 24,
+                fit: BoxFit.cover,
+                isAvatar: true,
+              )
+                  : Center(
                 child: MyText(
-                  text:
-                      name.isNotEmpty
-                          ? name
-                              .trim()
-                              .split(' ')
-                              .map((e) => e.isNotEmpty ? e[0] : '')
-                              .take(2)
-                              .join()
-                              .toUpperCase()
-                          : '',
+                  text: _initials(name.isNotEmpty ? name : groupName),
                   size: 16,
-                  weight: FontWeight.w600,
+                  weight: FontWeight.w700,
                 ),
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
+            // Name + last message
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  MyText(text: name, size: 14, weight: FontWeight.w600),
+                  MyText(text: name, size: 14, weight: FontWeight.w700),
                   MyText(
                     paddingTop: 6,
                     text: message,
@@ -88,7 +95,8 @@ class ChatHeadTile extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
+            // Time + unread badge
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -101,8 +109,8 @@ class ChatHeadTile extends StatelessWidget {
                 ),
                 if (hasUnread)
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                    decoration: BoxDecoration(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                    decoration: const BoxDecoration(
                       color: kSecondaryColor,
                       shape: BoxShape.circle,
                     ),

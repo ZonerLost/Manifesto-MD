@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:manifesto_md/firebase_options.dart';
 import 'package:manifesto_md/view/screens/smart_ddx_tool/smart_ddx_controller/smart_ddx_controller.dart';
+import 'package:manifesto_md/services/messaging_service.dart';
 import 'config/theme/light_theme.dart';
 
 void main() async {
@@ -12,6 +13,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  // await MessagingService.instance.initialize();
   Get.put(SmartDDxController());
   runApp(MyApp());
 }
