@@ -24,7 +24,7 @@ class Home extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final paymentController = Get.find<PaymentController>();
+    // final paymentController = Get.find<PaymentController>();
     final List<Map<String, String>> menuItems = [
       {
         'title': 'Clinical Manifestation',
@@ -98,9 +98,9 @@ class Home extends StatelessWidget {
                 case 'Profile':
                   Get.to(() => const Profile());
                   break;
-                case 'Subscriptions':
-                  Get.to(() => const Subscription());
-                  break;
+                // case 'Subscriptions':
+                //   Get.to(() => const Subscription());
+                //   break;
                 default:
                   break;
               }
@@ -177,14 +177,14 @@ class Home extends StatelessWidget {
           actions: [
             Center(child: Image.asset(Assets.imagesBookmark, height: 28)),
             SizedBox(width: 14),
-            Center(
-              child: GestureDetector(
-                onTap: () {
-                  Get.to(() => Subscription());
-                },
-                child: Image.asset(Assets.imagesProUser, height: 28),
-              ),
-            ),
+            // Center(
+            //   child: GestureDetector(
+            //     onTap: () {
+            //       Get.to(() => Subscription());
+            //     },
+            //     child: Image.asset(Assets.imagesProUser, height: 28),
+            //   ),
+            // ),
             const SizedBox(width: 20),
           ],
         ),
@@ -265,12 +265,12 @@ class Home extends StatelessWidget {
                 final isSmartDdxCard = item['title'] == 'Smart DDx Tool';
                 if (isSmartDdxCard) {
                   return Obx(() {
-                    final hasStatus =
-                        paymentController.hasCheckedSubscription.value;
-                    final isLocked = hasStatus
-                        ? !paymentController.isPremiumUser.value
-                        : true;
-                    return buildMenuTile(item, index, isLocked);
+                    // final hasStatus =
+                    //     paymentController.hasCheckedSubscription.value;
+                    // final isLocked = hasStatus
+                    //     ? !paymentController.isPremiumUser.value
+                    //     : true;
+                    return buildMenuTile(item, index, false);
                   });
                 }
                 return buildMenuTile(item, index, false);

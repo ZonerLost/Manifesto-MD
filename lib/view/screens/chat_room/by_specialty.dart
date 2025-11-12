@@ -28,7 +28,7 @@ class BySpecialty extends StatefulWidget {
 class _BySpecialtyState extends State<BySpecialty> {
   late final CreateGroupController groupController;
   late final ChatController chatController;
-  late final PaymentController paymentController;
+  // late final PaymentController paymentController;
   final ProfileController profileController = Get.find();
   final GroupSelectionController sel = Get.find<GroupSelectionController>();
 
@@ -37,7 +37,7 @@ class _BySpecialtyState extends State<BySpecialty> {
     super.initState();
 
     profileController.fetchProfile();
-    paymentController = Get.find<PaymentController>();
+    // paymentController = Get.find<PaymentController>();
     if (Get.isRegistered<CreateGroupController>()) {
       groupController = Get.find<CreateGroupController>();
     } else {
@@ -46,19 +46,19 @@ class _BySpecialtyState extends State<BySpecialty> {
   }
 
   Future<void> _handleNewGroupTap() async {
-    if (!paymentController.hasCheckedSubscription.value) {
-      await paymentController.checkIfPremium();
-    }
-    if (!paymentController.isPremiumUser.value) {
-      Get.snackbar(
-        'Subscription Required',
-        'A Manifesto MD Pro subscription is needed to create new groups.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
-      );
-      Get.to(() => const Subscription());
-      return;
-    }
+    // if (!paymentController.hasCheckedSubscription.value) {
+    //   await paymentController.checkIfPremium();
+    // }
+    // if (!paymentController.isPremiumUser.value) {
+    //   Get.snackbar(
+    //     'Subscription Required',
+    //     'A Manifesto MD Pro subscription is needed to create new groups.',
+    //     snackPosition: SnackPosition.BOTTOM,
+    //     margin: const EdgeInsets.all(16),
+    //   );
+    //   Get.to(() => const Subscription());
+    //   return;
+    // }
     Get.to(() => CreateNewGroup(), binding: AppBindings());
   }
 

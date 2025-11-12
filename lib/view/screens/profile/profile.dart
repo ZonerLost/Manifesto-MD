@@ -182,26 +182,26 @@ class _ProfileState extends State<Profile> {
                       ],
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      Get.to(() => Subscription());
-                    },
-                    child: Container(
-                      width: 72,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: kPrimaryColor,
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      alignment: Alignment.center,
-                      child: MyText(
-                        text: 'Continue',
-                        size: 12,
-                        weight: FontWeight.bold,
-                        color: kSecondaryColor,
-                      ),
-                    ),
-                  ),
+                  // GestureDetector(
+                  //   onTap: () {
+                  //     Get.to(() => Subscription());
+                  //   },
+                  //   child: Container(
+                  //     width: 72,
+                  //     height: 30,
+                  //     decoration: BoxDecoration(
+                  //       color: kPrimaryColor,
+                  //       borderRadius: BorderRadius.circular(50),
+                  //     ),
+                  //     alignment: Alignment.center,
+                  //     child: MyText(
+                  //       text: 'Continue',
+                  //       size: 12,
+                  //       weight: FontWeight.bold,
+                  //       color: kSecondaryColor,
+                  //     ),
+                  //   ),
+                  // ),
                 ],
               ),
             ),
