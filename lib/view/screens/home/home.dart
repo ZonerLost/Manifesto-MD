@@ -264,14 +264,15 @@ class Home extends StatelessWidget {
                 final item = menuItems[index];
                 final isSmartDdxCard = item['title'] == 'Smart DDx Tool';
                 if (isSmartDdxCard) {
-                  return Obx(() {
+                  // return Obx(() {
                     // final hasStatus =
                     //     paymentController.hasCheckedSubscription.value;
                     // final isLocked = hasStatus
                     //     ? !paymentController.isPremiumUser.value
                     //     : true;
-                    return buildMenuTile(item, index, false);
-                  });
+                    // return 
+                    buildMenuTile(item, index, false);
+                  // });
                 }
                 return buildMenuTile(item, index, false);
               },

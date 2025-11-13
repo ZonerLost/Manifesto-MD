@@ -170,9 +170,10 @@ class Login extends StatelessWidget {
                 await authController.signInWithGoogle(index);
               } else if (socialName.contains('Apple')) {
                 // await authController.signInWithApple();
-              } else if (socialName.contains('Facebook')) {
-                // await authController.signInWithFacebook();
-              }
+              } 
+              // else if (socialName.contains('Facebook')) {
+              //   // await authController.signInWithFacebook();
+              // }
                         },
                         child:Obx( () {
                           final isButtonLoading = authController.loadingIndex.value == index;

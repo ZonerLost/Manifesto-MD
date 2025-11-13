@@ -233,7 +233,7 @@ class SignUp extends StatelessWidget {
               ),
               SizedBox(height: 16),
               ListView.builder(
-                itemCount: 3,
+                itemCount: 2,
                 shrinkWrap: true,
                 padding: EdgeInsets.zero,
                 physics: BouncingScrollPhysics(),
@@ -243,38 +243,51 @@ class SignUp extends StatelessWidget {
                       'icon': Assets.imagesGoogle,
                       'title': 'Continue with Google',
                     },
-                    {'icon': Assets.imagesApple, 'title': 'Continue with Apple'},
-                    {
-                      'icon': Assets.imagesFacebook,
-                      'title': 'Continue with Facebook',
-                    },
+                    {'icon': Assets.imagesApple, 
+                    'title': 'Continue with Apple'},
+                    // {
+                    //   'icon': Assets.imagesFacebook,
+                    //   'title': 'Continue with Facebook',
+                    // },
                   ];
                   return Padding(
                     padding: EdgeInsets.only(bottom: 15),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 14),
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: kPrimaryColor,
-                        borderRadius: BorderRadius.circular(50),
-                        border: Border.all(width: 1, color: kBorderColor),
-                      ),
-                      child: Row(
-                        children: [
-                          Image.asset(_items[index]['icon'], height: 22),
-                          Expanded(
-                            child: MyText(
-                              text: _items[index]['title'],
-                              paddingRight: 20,
-                              weight: FontWeight.w600,
-                              size: 14,
-                              textAlign: TextAlign.center,
+                    child: Obx( () { 
+                      final isButtonLoading = authController.loadingIndex.value == index;
+                      return GestureDetector(
+                      onTap: () async {
+                         if (_items[index]['title'].contains('Google')) {
+                await authController.signUpWithGoogle(index);
+              } else if (_items[index]['title'].contains('Apple')) {
+                // await authController.signInWithApple();
+              } 
+                      },
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 14),
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: kPrimaryColor,
+                          borderRadius: BorderRadius.circular(50),
+                          border: Border.all(width: 1, color: kBorderColor),
+                        ),
+                        child: isButtonLoading ? Center(child: CircularProgressIndicator.adaptive(),) : Row(
+                          children: [
+                            Image.asset(_items[index]['icon'], height: 22),
+                            Expanded(
+                              child: MyText(
+                                text: _items[index]['title'],
+                                paddingRight: 20,
+                                weight: FontWeight.w600,
+                                size: 14,
+                                textAlign: TextAlign.center,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                    }
+                  ));
                 },
               ),
               SizedBox(height: 24),

@@ -72,6 +72,34 @@ Future<AuthModel?> login({
   }
 
 
+  Future<String> forgotPassword(String email) async {
+  try {
+    // Step 1: Check if email exists in Firestore
+    final querySnapshot = await _firestore
+        .collection("users")
+        .where("email", isEqualTo: email.trim())
+        .limit(1)
+        .get();
+
+    if (querySnapshot.docs.isEmpty) {
+      // ⚠️ No account found
+      return "No account found for this email.";
+    }
+
+    // Step 2: Send reset password email via Firebase
+    await _auth.sendPasswordResetEmail(email: email.trim(),);
+
+    // ✅ Successfully sent
+    return "A password reset link has been sent to your email.";
+  } on FirebaseAuthException catch (e) {
+    throw getFirebaseAuthErrorMessage(e.code);
+  } catch (e) {
+    throw ("Forgot Password Error: $e");
+  }
+}
+
+
+
 Future<String> checkForEmail(String email) async {
   try {
     final querySnapshot = await _firestore
@@ -89,51 +117,73 @@ Future<String> checkForEmail(String email) async {
   }
 }
 
+Future<User?> signInWithGoogle() async {
+  try {
+    // Trigger Google Sign-In
+    await _googleSignIn.initialize();
+    final GoogleSignInAccount account = await _googleSignIn.authenticate(
+      scopeHint: ['email', 'profile'],
+    );
 
-  Future<User?> signInWithGoogle() async {
-    try {
-      // Trigger Google Sign In
-      await _googleSignIn.initialize();
-    final GoogleSignInAccount account =  await _googleSignIn.authenticate(
-        scopeHint: ['email', 'profile'],
-      );
-
-        final GoogleSignInClientAuthorization? authorization = await account
-          .authorizationClient
-          .authorizationForScopes(['email', 'profile']);
-      if (authorization == null) {
-        print("Google sign-in cancelled by authorization");
-        return null;
-      }
-
-        final GoogleSignInAuthentication authTokens = account.authentication;
-
-         final credential = GoogleAuthProvider.credential(
-        accessToken: authorization.accessToken,
-        idToken: authTokens.idToken,
-      );
-
-
-      // Sign in to Firebase
-      final UserCredential userCredential =
-          await _auth.signInWithCredential(credential);
-
-      final AuthModel authModel = AuthModel(uid: userCredential.user!.uid, 
-      email: userCredential.user?.email ?? "", country: "", name: userCredential.user?.displayName ?? "N/A", 
-      createdAt: DateTime.now());
-      SharePrefService.instance.addUserId(userCredential.user!.uid);
-
-        await _firestore
-            .collection("users")
-            .doc(userCredential.user!.uid)
-            .set(authModel.toMap(), SetOptions(merge: true));
-            
-      return userCredential.user;
-    } catch (e) {
-      print("Google Sign-In Error: $e");
+    // Request authorization
+    final GoogleSignInClientAuthorization? authorization = await account
+        .authorizationClient
+        .authorizationForScopes(['email', 'profile']);
+    if (authorization == null) {
+      print("Google sign-in cancelled by authorization");
       return null;
     }
+
+    final GoogleSignInAuthentication authTokens = account.authentication;
+
+    // Create Firebase credential
+    final credential = GoogleAuthProvider.credential(
+      accessToken: authorization.accessToken,
+      idToken: authTokens.idToken,
+    );
+
+    // Sign in to Firebase with Google credentials
+    final UserCredential userCredential =
+        await _auth.signInWithCredential(credential);
+    final user = userCredential.user;
+
+    if (user == null) {
+      print("Google sign-in failed: user is null");
+      return null;
+    }
+
+    final userDoc = await _firestore.collection("users").doc(user.uid).get();
+
+    if (userDoc.exists) {
+      // ✅ User already exists → just sign in and store UID
+      print("User already exists, logging in...");
+      await SharePrefService.instance.addUserId(user.uid);
+    } else {
+      // 🆕 New user → add to Firestore
+      print("New user detected, creating record...");
+      final authModel = AuthModel(
+        uid: user.uid,
+        email: user.email ?? "",
+        country: "",
+        name: user.displayName ?? "N/A",
+        createdAt: DateTime.now(),
+      );
+
+      await _firestore
+          .collection("users")
+          .doc(user.uid)
+          .set(authModel.toMap(), SetOptions(merge: true));
+
+      await SharePrefService.instance.addUserId(user.uid);
+    }
+
+    return user;
+  } catch (e) {
+    print("Google Sign-In Error: $e");
+    return null;
   }
+}
+
 
   String getFirebaseAuthErrorMessage(String errorCode) {
   switch (errorCode) {

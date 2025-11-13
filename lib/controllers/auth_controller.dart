@@ -134,6 +134,74 @@ class AuthController extends GetxController {
   }
 
 
+  Future signUpWithGoogle(int index) async {
+    loadingIndex.value = index;
+    try {
+
+      final respSignUp = await AuthService.instance.signInWithGoogle();
+
+
+      if(respSignUp?.uid != null){
+        userId.value = respSignUp?.uid ?? "";
+        Get.toNamed(AppLinks.professionalDetailsScreen);
+      }
+
+    } catch (e) {
+      print(e);
+      showCommonSnackbarWidget("Error", e.toString(), 
+      messageTextColor: kFillColor, textColor: kFillColor, );
+    } finally {
+            loadingIndex.value = -1;
+
+    }
+  }
+
+
+  Future forgotPassword(String email) async {
+  if (email.trim().isEmpty) {
+    showCommonSnackbarWidget(
+      "Error",
+      "Please enter your email address.",
+      messageTextColor: kFillColor,
+      textColor: kFillColor,
+    );
+    return;
+  }
+
+  isLoading.value = true;
+  try {
+    final message = await AuthService.instance.forgotPassword(email.trim());
+
+    showCommonSnackbarWidget(
+      "Success",
+      message,
+      bgColor: kBlueColor,
+      textColor: kFillColor,
+      messageTextColor: kFillColor,
+    );
+
+    // Optional: After showing the message, navigate back to login
+    Future.delayed(const Duration(seconds: 2), () {
+      Get.offAllNamed(AppLinks.loginScreen);
+    });
+
+  } catch (e) {
+    print("Forgot Password Error: $e");
+    showCommonSnackbarWidget(
+      "Error",
+      e.toString().replaceAll("Exception:", "").trim(),
+      messageTextColor: kFillColor,
+      textColor: kFillColor,
+    );
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+
+
+
+
   Future checkForEmail(String email) async{
     isCheckingForEmail.value = true;
     try {
