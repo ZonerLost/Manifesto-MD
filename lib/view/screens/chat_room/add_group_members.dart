@@ -21,7 +21,7 @@ class AddGroupMembers extends StatefulWidget {
 
 class _AddGroupMembersState extends State<AddGroupMembers> {
   late final CreateGroupController c;
-  // late final PaymentController paymentController;
+  late final PaymentController paymentController;
   final TextEditingController _searchController = TextEditingController();
   final _scrollCtrl = ScrollController();
 
@@ -37,7 +37,7 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
     c = Get.isRegistered<CreateGroupController>()
         ? Get.find<CreateGroupController>()
         : Get.put(CreateGroupController());
-    // paymentController = Get.find<PaymentController>();
+    paymentController = Get.find<PaymentController>();
 
     // Get existing group data if provided
     final args = Get.arguments as Map<String, dynamic>?;
@@ -101,16 +101,16 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
   // Method for creating new group
   Future<void> _createGroup() async {
     if (c.isSubmitting.value) return;
-    // if (!await _hasPremiumAccess()) {
-    //   Get.snackbar(
-    //     'Subscription Required',
-    //     'Upgrade to Manifesto MD Pro to create a new group.',
-    //     snackPosition: SnackPosition.BOTTOM,
-    //     margin: const EdgeInsets.all(16),
-    //   );
-    //   Get.to(() => const Subscription());
-    //   return;
-    // }
+    if (!await _hasPremiumAccess()) {
+      Get.snackbar(
+        'Subscription Required',
+        'Upgrade to Manifesto MD Pro to create a new group.',
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(16),
+      );
+      Get.to(() => const Subscription());
+      return;
+    }
 
     try {
       c.isSubmitting.value = true;
@@ -122,12 +122,12 @@ class _AddGroupMembersState extends State<AddGroupMembers> {
     }
   }
 
-  // Future<bool> _hasPremiumAccess() async {
-  //   if (!paymentController.hasCheckedSubscription.value) {
-  //     await paymentController.checkIfPremium();
-  //   }
-  //   return paymentController.isPremiumUser.value;
-  // }
+  Future<bool> _hasPremiumAccess() async {
+    if (!paymentController.hasCheckedSubscription.value) {
+      await paymentController.checkIfPremium();
+    }
+    return paymentController.isPremiumUser.value;
+  }
 
   @override
   Widget build(BuildContext context) {

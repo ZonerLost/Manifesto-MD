@@ -257,8 +257,6 @@ Future<void> logOut() async{
     SharePrefService.instance.clearUserId();
   } catch (e) {
       throw ("Something Went Wrong  $e");
+    }
   }
-}
-
-
 }

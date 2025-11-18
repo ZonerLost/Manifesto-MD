@@ -29,7 +29,7 @@
     <string>Editor</string>
     <key>CFBundleURLSchemes</key>
     <array>
-      <string>com.googleusercontent.apps.970427068745-3dpg6nej1o09of861hsm3fincnq2arip</string>
+      <string>com.googleusercontent.apps.170382388692-7qfad8tpag52rnhjbj6as0ducm3g3vr2</string>
     </array>
   	</dict>
 	</array>
@@ -58,7 +58,7 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.970427068745-3dpg6nej1o09of861hsm3fincnq2arip</string>
+	<string>com.googleusercontent.apps.170382388692-7qfad8tpag52rnhjbj6as0ducm3g3vr2</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

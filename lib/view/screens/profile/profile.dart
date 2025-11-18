@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:manifesto_md/config/extensions/media_query_extensions.dart';
 import 'package:manifesto_md/constants/app_colors.dart';
 import 'package:manifesto_md/constants/app_images.dart';
@@ -35,6 +36,42 @@ class _ProfileState extends State<Profile> {
     final ProfileController profileController = Get.find();
     final AuthController authController = Get.find();
 
+  void _showImageSourceSheet() {
+    Get.bottomSheet(
+      Container(
+        decoration: BoxDecoration(
+          color: Get.theme.cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from Gallery'),
+              onTap: () => _pickImage(ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Take a Photo'),
+              onTap: () => _pickImage(ImageSource.camera),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('Cancel'),
+              onTap: () => Get.back(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    Get.back();
+    await profileController.pickAndUploadProfileImage(source: source);
+  }
   @override
   void initState() {
     super.initState();
@@ -57,22 +94,46 @@ class _ProfileState extends State<Profile> {
               children: [
                 Stack(
                   children: [
-                    CommonImageView(
-                      height: 60,
-                      width: 60,
-                      url: dummyImg,
-                      fit: BoxFit.cover,
-                      radius: 100,
-                    ),
-                   Obx(() => Positioned(
+                    Obx(() {
+                      final url = profileController.imageUrl.value.isNotEmpty
+                          ? profileController.imageUrl.value
+                          : dummyImg;
+                      return CommonImageView(
+                        height: 60,
+                        width: 60,
+                        url: url,
+                        fit: BoxFit.cover,
+                        radius: 100,
+                      );
+                    }),
+                    Positioned(
                       bottom: 0,
                       right: 0,
-                      child: profileController.isLoading.value ? CommonShimmer(height: 60, width: 60, radius: 60,) :  Image.asset(
-                        Assets.imagesChangeProfileImage,
-                        height: 22,
+                      child: GestureDetector(
+                        onTap: _showImageSourceSheet,
+                        child: Obx(() {
+                          if (profileController.isLoading.value) {
+                            return const CommonShimmer(
+                              height: 28,
+                              width: 28,
+                              radius: 28,
+                            );
+                          }
+                          return Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              // color: kSecondaryColor,
+                              shape: BoxShape.circle,
+                              // border: Border.all(color: kPrimaryColor, width: 1),
+                            ),
+                            child: Image.asset(
+                              Assets.imagesChangeProfileImage,
+                              height: 22,
+                            ),
+                          );
+                        }),
                       ),
                     ),
-                   )
                   ],
                 ),
                 SizedBox(width: 20),
@@ -182,39 +243,39 @@ class _ProfileState extends State<Profile> {
                       ],
                     ),
                   ),
-                  // GestureDetector(
-                  //   onTap: () {
-                  //     Get.to(() => Subscription());
-                  //   },
-                  //   child: Container(
-                  //     width: 72,
-                  //     height: 30,
-                  //     decoration: BoxDecoration(
-                  //       color: kPrimaryColor,
-                  //       borderRadius: BorderRadius.circular(50),
-                  //     ),
-                  //     alignment: Alignment.center,
-                  //     child: MyText(
-                  //       text: 'Continue',
-                  //       size: 12,
-                  //       weight: FontWeight.bold,
-                  //       color: kSecondaryColor,
-                  //     ),
-                  //   ),
-                  // ),
+                  GestureDetector(
+                    onTap: () {
+                      Get.to(() => const Subscription());
+                    },
+                    child: Container(
+                      width: 72,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: kPrimaryColor,
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      alignment: Alignment.center,
+                      child: MyText(
+                        text: 'Continue',
+                        size: 12,
+                        weight: FontWeight.bold,
+                        color: kSecondaryColor,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
             SizedBox(height: 20),
             MyText(text: 'General', weight: FontWeight.w600, paddingBottom: 8),
-            _ProfileTile(
-              onTap: () {
-                Get.bottomSheet(AppLanguage(), isScrollControlled: true);
-              },
-              image: Assets.imagesAppLanguage,
-              title: 'App Language',
-              subtitle: 'Customize to your regional languages.',
-            ),
+            // _ProfileTile(
+            //   onTap: () {
+            //     Get.bottomSheet(AppLanguage(), isScrollControlled: true);
+            //   },
+            //   image: Assets.imagesAppLanguage,
+            //   title: 'App Language',
+            //   subtitle: 'Customize to your regional languages.',
+            // ),
             _ProfileTile(
               onTap: () {
                 Get.bottomSheet(_RateUs(), isScrollControlled: true);
@@ -223,14 +284,14 @@ class _ProfileState extends State<Profile> {
               title: 'Rate Us',
               subtitle: 'Rate our app on play store.',
             ),
-            _ProfileTile(
-              onTap: () {
-                Get.bottomSheet(AppTheme(), isScrollControlled: true);
-              },
-              image: Assets.imagesAppTheme,
-              title: 'App Theme',
-              subtitle: 'Light Theme',
-            ),
+            // _ProfileTile(
+            //   onTap: () {
+            //     Get.bottomSheet(AppTheme(), isScrollControlled: true);
+            //   },
+            //   image: Assets.imagesAppTheme,
+            //   title: 'App Theme',
+            //   subtitle: 'Light Theme',
+            // ),
             _ProfileTile(
               image: Assets.imagesReferenceIcon,
               title: 'References',

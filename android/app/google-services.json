@@ -1,41 +1,34 @@
 {
   "project_info": {
-    "project_number": "970427068745",
-    "project_id": "manifesto-md",
-    "storage_bucket": "manifesto-md.firebasestorage.app"
+    "project_number": "170382388692",
+    "project_id": "manifesto-md-1c05d",
+    "storage_bucket": "manifesto-md-1c05d.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:970427068745:android:3c59424713d35266b66a98",
+        "mobilesdk_app_id": "1:170382388692:android:e061a820f5bce9032dba41",
         "android_client_info": {
           "package_name": "com.example.manifestomd"
         }
       },
       "oauth_client": [
         {
-          "client_id": "970427068745-8n6m21u8untnjvt7p57qop7rgulnatru.apps.googleusercontent.com",
+          "client_id": "170382388692-bfiqdaiupvd3mvo8otv6lj2qg2kvaqlb.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyAS66UkMnHtl1zKTNQNawG5Xg_SS2g7iW0"
+          "current_key": "AIzaSyCKKxg665InwBKQSPHmtZtGKtXsCtlnIBQ"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "970427068745-8n6m21u8untnjvt7p57qop7rgulnatru.apps.googleusercontent.com",
+              "client_id": "170382388692-bfiqdaiupvd3mvo8otv6lj2qg2kvaqlb.apps.googleusercontent.com",
               "client_type": 3
-            },
-            {
-              "client_id": "970427068745-3dpg6nej1o09of861hsm3fincnq2arip.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.example.manifestomd"
-              }
             }
           ]
         }

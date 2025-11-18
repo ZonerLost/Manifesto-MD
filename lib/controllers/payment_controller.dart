@@ -1,63 +1,113 @@
-// import 'package:get/get.dart';
-// import 'package:manifesto_md/services/payment_service.dart';
-// import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:get/get.dart';
+import 'package:manifesto_md/services/payment_service.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 
-// class PaymentController extends GetxController {
-//   final Rx<Offerings?> offerings = Rx<Offerings?>(null);
-//   final RxBool isLoading = false.obs;
-//   final RxBool isPremiumUser = false.obs;
-//   final RxBool hasCheckedSubscription = false.obs;
-//   final RxList<Package> packages = <Package>[].obs;
+class PaymentController extends GetxController {
+  /// Full offerings object (all offerings from RevenueCat)
+  final Rx<Offerings?> offerings = Rx<Offerings?>(null);
 
-//   @override
-//   void onInit() {
-//     super.onInit();
-//     _initializeRevenueCat();
-//   }
+  /// Packages (products) from the CURRENT offering
+  final RxList<Package> packages = <Package>[].obs;
 
-//   Future<void> _initializeRevenueCat() async {
-//     isLoading(true);
-//     try {
-//       await PaymentService.instance.init();
-//       await loadOfferings();
-//       await fetchSubscriptions();
-//       await checkIfPremium();
-//     } finally {
-//       isLoading(false);
-//     }
-//   }
+  /// Global loading for init + fetching offerings
+  final RxBool isLoading = false.obs;
 
-//   Future<void> loadOfferings() async {
-//     offerings.value = await PaymentService.instance.getOfferings();
-//   }
+  /// Loading just for a purchase action (optional separate flag)
+  final RxBool isPurchasing = false.obs;
 
-//   Future<void> fetchSubscriptions() async {
-//     final cachedOfferings = offerings.value;
-//     final fetchedOfferings =
-//         cachedOfferings ?? await PaymentService.instance.getOfferings();
-//     if (offerings.value == null && fetchedOfferings != null) {
-//       offerings.value = fetchedOfferings;
-//     }
-//     if (fetchedOfferings != null && fetchedOfferings.current != null) {
-//       packages.value = fetchedOfferings.current!.availablePackages;
-//       print("✅ Products Loaded: ${packages.length}");
-//     } else {
-//       packages.clear();
-//     }
-//   }
+  /// Premium state
+  final RxBool isPremiumUser = false.obs;
+  final RxBool hasCheckedSubscription = false.obs;
 
-//   Future<void> purchase(PurchaseParams package) async {
-//     final success = await PaymentService.instance.purchase(package);
-//     if (success) {
-//       await checkIfPremium();
-//       Get.snackbar("Success", "✅ Subscription Activated");
-//     } else {
-//       Get.snackbar("Error", "Subscription failed");
-//     }
-//   }
+  @override
+  void onInit() {
+    super.onInit();
+    _initializeRevenueCat();
+  }
 
-//   Future<void> checkIfPremium() async {
-//     isPremiumUser.value = await PaymentService.instance.isUserPremium();
-//     hasCheckedSubscription.value = true;
-//   }
-// }
+  Future<void> _initializeRevenueCat() async {
+    isLoading.value = true;
+    try {
+      // 1) Configure RevenueCat SDK
+      await PaymentService.instance.init();
+
+      // 2) Load offerings + packages
+      await loadOfferings();
+
+      // 3) Check subscription status
+      await checkIfPremium();
+    } catch (e) {
+      print("❌ Error initializing RevenueCat: $e");
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// Fetch offerings from PaymentService (with caching inside service)
+  Future<void> loadOfferings({bool forceRefresh = false}) async {
+    try {
+      final fetchedOfferings =
+          await PaymentService.instance.fetchOfferings(forceRefresh: forceRefresh);
+
+      offerings.value = fetchedOfferings;
+
+      // Use current offering by default
+      final current = fetchedOfferings?.current;
+      if (current != null) {
+        packages.assignAll(current.availablePackages);
+        print("✅ Packages loaded from current offering: ${packages.length}");
+      } else {
+        packages.clear();
+        print("⚠️ No current offering or no packages available.");
+      }
+    } catch (e) {
+      print("❌ Error loading offerings: $e");
+      packages.clear();
+    }
+  }
+
+  /// Optional: if you ever want ALL packages from ALL offerings:
+  Future<void> loadAllPackagesFromAllOfferings({bool forceRefresh = false}) async {
+    try {
+      final allPackages =
+          await PaymentService.instance.getAllAvailablePackages(forceRefresh: forceRefresh);
+      packages.assignAll(allPackages);
+      print("✅ All packages from all offerings: ${packages.length}");
+    } catch (e) {
+      print("❌ Error loading all packages: $e");
+      packages.clear();
+    }
+  }
+
+  /// Purchase using your abstracted PurchaseParams
+  /// (You said you’re using a custom wrapper, so I keep it.)
+  Future<void> purchase(PurchaseParams purchaseParams) async {
+    isPurchasing.value = true;
+    try {
+      final success = await PaymentService.instance.purchase(purchaseParams);
+      if (success) {
+        await checkIfPremium();
+        Get.snackbar("Success", "✅ Subscription Activated");
+      } else {
+        Get.snackbar("Error", "Subscription failed");
+      }
+    } catch (e) {
+      print("❌ Error during purchase: $e");
+      Get.snackbar("Error", "Something went wrong with the purchase");
+    } finally {
+      isPurchasing.value = false;
+    }
+  }
+
+  /// Check if user has "premium" entitlement
+  Future<void> checkIfPremium() async {
+    try {
+      isPremiumUser.value = await PaymentService.instance.isUserPremium();
+      hasCheckedSubscription.value = true;
+      print("👑 isPremiumUser: ${isPremiumUser.value}");
+    } catch (e) {
+      print("❌ Error checking premium: $e");
+      hasCheckedSubscription.value = true;
+    }
+  }
+}

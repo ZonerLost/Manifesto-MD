@@ -115,12 +115,25 @@ Future<void> updateProfessionalDetails({
 
       // Update user's Firestore document with new image URL
       await _firestore.collection('users').doc(userId).update({
-        'profileImage': imageUrl,
+        'photoUrl': imageUrl,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
       return imageUrl;
     } catch (e) {
       throw Exception("Upload image error: $e");
+    }
+  }
+
+  /// ✅ Save (or merge) the top-level user profile document.
+  Future<void> saveProfile(AuthModel profile) async {
+    try {
+      await _firestore
+          .collection('users')
+          .doc(profile.uid)
+          .set(profile.toMap(), SetOptions(merge: true));
+    } catch (e) {
+      throw Exception("Save profile error: $e");
     }
   }
 }

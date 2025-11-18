@@ -11,7 +11,7 @@ class AppBindings extends Bindings {
     Get.put(AuthController());
     Get.put(ProfileController());
     Get.lazyPut(() => CreateGroupController());
-    // Get.put(PaymentController(), permanent: true);
+    Get.put(PaymentController(), permanent: true);
     Get.put(() => GeminiController());
     
   }

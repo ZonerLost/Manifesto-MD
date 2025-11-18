@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:manifesto_md/models/auth_model.dart';
 import 'package:manifesto_md/models/professional_details_model.dart';
 import 'package:manifesto_md/services/profile_service.dart';
@@ -13,6 +14,7 @@ class ProfileController extends GetxController {
   RxString imageUrl = ''.obs;
   RxString docId = ''.obs;
   RxDouble profileCompletion = 0.0.obs; 
+  final ImagePicker _imagePicker = ImagePicker();
 
 
   
@@ -100,7 +102,7 @@ Future<void> updateProfile(
       showCommonSnackbarWidget("Success", "Profile Updated Successfully");
     } catch (e) {
       print("Update profile error: $e");
-        showCommonSnackbarWidget("Error", "Failed to update profile");
+      showCommonSnackbarWidget("Error", "Failed to update profile");
     } finally {
       isLoading.value = false;
     }
@@ -113,14 +115,60 @@ Future<void> updateProfile(
     isLoading.value = true;
     try {
       final userId = await SharePrefService.instance.getUserId();
+      if (userId == null || userId.isEmpty) {
+        throw Exception("No user ID available for upload");
+      }
+
       final url = await ProfileService.instance.uploadProfileImage(
-        userId: userId!,
+        userId: userId,
         imageFile: imageFile,
       );
+
       imageUrl.value = url;
-    
+
+      if (profile.value != null) {
+        profile.value = profile.value!.copyWith(photoUrl: url);
+        profile.refresh();
+      }
+
+      calculateProfileCompletion();
+      showCommonSnackbarWidget("Success", "Profile picture updated.");
     } catch (e) {
       print("Upload image error: $e");
+      showCommonSnackbarWidget("Error", "Failed to upload profile picture.");
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// Picks an image via `image_picker` and uploads it.
+  Future<void> pickAndUploadProfileImage({
+    ImageSource source = ImageSource.gallery,
+  }) async {
+    final pickedFile = await _imagePicker.pickImage(
+      source: source,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 80,
+    );
+    if (pickedFile == null) return;
+
+    await uploadProfileImage(File(pickedFile.path));
+  }
+
+  /// ✅ Persist or merge a full profile object.
+  Future<void> saveProfile(AuthModel updatedProfile) async {
+    isLoading.value = true;
+    try {
+      await ProfileService.instance.saveProfile(updatedProfile);
+      profile.value = updatedProfile;
+      imageUrl.value = updatedProfile.photoUrl ?? '';
+      calculateProfileCompletion();
+      profile.refresh();
+      showCommonSnackbarWidget("Success", "Profile saved successfully");
+    } catch (e) {
+      print("Save profile error: $e");
+      showCommonSnackbarWidget("Error", "Failed to save profile");
     } finally {
       isLoading.value = false;
     }
